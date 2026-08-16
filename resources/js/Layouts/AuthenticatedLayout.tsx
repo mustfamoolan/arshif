@@ -1,4 +1,4 @@
-import { useState, ReactNode } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
 import { PageProps } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import {
     User,
     PhoneCall,
     History,
+    Download,
 } from 'lucide-react';
 
 interface AuthenticatedProps {
@@ -26,6 +27,59 @@ export default function AuthenticatedLayout({ children, header }: AuthenticatedP
     const user = auth.user;
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    // PWA Install Prompt State
+    const [showInstallBanner, setShowInstallBanner] = useState(false);
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+    const [isIOS, setIsIOS] = useState(false);
+
+    useEffect(() => {
+        // Check if already running in standalone mode (installed PWA)
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+        if (isStandalone) return;
+
+        // Detect iOS
+        const userAgent = window.navigator.userAgent.toLowerCase();
+        const ios = /iphone|ipad|ipod/.test(userAgent);
+        setIsIOS(ios);
+
+        // Listen for standard beforeinstallprompt (Chrome / Android)
+        const handleBeforeInstallPrompt = (e: any) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+            if (!localStorage.getItem('pwa_install_dismissed')) {
+                setShowInstallBanner(true);
+            }
+        };
+
+        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+        // For iOS: since it doesn't support beforeinstallprompt, show the banner if on iOS and not standalone
+        if (ios && !isStandalone && !localStorage.getItem('pwa_install_dismissed')) {
+            setShowInstallBanner(true);
+        }
+
+        return () => {
+            window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        };
+    }, []);
+
+    const handleInstallClick = () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then((choiceResult: any) => {
+                if (choiceResult.outcome === 'accepted') {
+                    setShowInstallBanner(false);
+                }
+                setDeferredPrompt(null);
+            });
+        }
+    };
+
+    const handleDismiss = () => {
+        localStorage.setItem('pwa_install_dismissed', 'true');
+        setShowInstallBanner(false);
+    };
 
     const navItems = [
         {
@@ -251,6 +305,65 @@ export default function AuthenticatedLayout({ children, header }: AuthenticatedP
                     {children}
                 </main>
             </div>
+
+            {/* PWA Install Banner */}
+            {showInstallBanner && (
+                <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:w-96 animate-in fade-in slide-in-from-bottom-5 duration-300">
+                    <div className="bg-background/95 backdrop-blur-md border border-border rounded-xl p-4 shadow-xl flex flex-col gap-3 text-right">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                                    <PhoneCall className="h-5 w-5" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h4 className="font-bold text-sm text-foreground">تثبيت تطبيق الأرشيف</h4>
+                                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                                        {isIOS 
+                                            ? 'أضف التطبيق لشاشتك الرئيسية للوصول السريع ومتابعة عملك'
+                                            : 'تصفح أسرع، استهلاك أقل للبيانات، ووصول مباشر من الشاشة الرئيسية'
+                                        }
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={handleDismiss}
+                                className="text-muted-foreground hover:text-foreground p-1 transition-colors rounded-full hover:bg-muted shrink-0"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        
+                        {isIOS ? (
+                            <div className="bg-muted/50 rounded-lg p-2.5 text-xs text-muted-foreground border border-border">
+                                <p className="font-semibold text-foreground mb-1">خطوات التثبيت على الآيفون:</p>
+                                <ol className="list-decimal list-inside space-y-1 pr-1">
+                                    <li>اضغط على زر المشاركة <span className="inline-block font-mono bg-background px-1.5 py-0.5 rounded border border-border text-[10px]">Share ⎙</span> أسفل المتصفح</li>
+                                    <li>اختر <span className="font-semibold text-foreground">إضافة للشاشة الرئيسية (Add to Home Screen)</span></li>
+                                </ol>
+                            </div>
+                        ) : (
+                            <div className="flex gap-2">
+                                <Button 
+                                    size="sm" 
+                                    className="flex-1 text-xs gap-1.5 font-bold h-8"
+                                    onClick={handleInstallClick}
+                                >
+                                    <Download className="h-3.5 w-3.5" />
+                                    تثبيت الآن
+                                </Button>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="text-xs h-8"
+                                    onClick={handleDismiss}
+                                >
+                                    لاحقاً
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
