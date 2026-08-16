@@ -1,10 +1,10 @@
 <?php
-// تحديد المسارات بدقة
-$targetFolder = dirname(__FILE__) . '/storage/app/public';
-$linkFolder = dirname(__FILE__) . '/public/storage';
+// بما أن الملف موجود داخل مجلد public/
+$targetFolder = dirname(__FILE__) . '/../storage/app/public';
+$linkFolder = dirname(__FILE__) . '/storage';
 
 echo "<h3>معلومات المسارات:</h3>";
-echo "المجلد المستهدف الأصلي (Target): " . $targetFolder . "<br>";
+echo "المجلد المستهدف الأصلي (Target): " . realpath($targetFolder) . " ($targetFolder)<br>";
 echo "رابط الوصول العام (Link): " . $linkFolder . "<br><br>";
 
 // 1. التحقق من وجود مجلد حقيقي في public/storage لمنع تعارض الإنشاء
@@ -29,13 +29,17 @@ if (file_exists($linkFolder)) {
         
         // حذف المجلد القديم الفارغ
         @rmdir($linkFolder . '/refrigerators');
-        @rmdir($linkFolder);
+        if (@rmdir($linkFolder)) {
+            echo "تم حذف المجلد القديم بنجاح.<br>";
+        } else {
+            echo "فشل حذف المجلد القديم. يرجى حذفه يدوياً عبر لوحة التحكم الاستضافة cPanel.<br>";
+        }
     }
 }
 
 // 2. إنشاء الرابط الرمزي
 if (symlink($targetFolder, $linkFolder)) {
-    echo "<h2 style='color:green;'>تم إنشاء الرابط الرمزي (Symlink) بنجاح وتوجيهه إلى public/storage!</h2>";
+    echo "<h2 style='color:green;'>تم إنشاء الرابط الرمزي (Symlink) بنجاح!</h2>";
 } else {
     echo "<h2 style='color:red;'>فشل إنشاء الرابط الرمزي. قد تكون الدالة symlink معطلة من إعدادات الاستضافة (PHP disable_functions).</h2>";
 }
