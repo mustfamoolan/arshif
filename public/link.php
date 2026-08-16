@@ -39,20 +39,43 @@ echo "جاري محاولة إصلاح التصاريح إلى 755 للمجلد�
 fixPermissions($path1);
 echo "تم تحديث التصاريح.<br><br>";
 
-echo "تصاريح مجلد storage بعد الإصلاح: " . getPerms($path1) . "<br>";
-echo "تصاريح مجلد storage/app/public بعد الإصلاح: " . getPerms($path3) . "<br><br>";
+// 1. التحقق من وجود مجلد حقيقي في public/storage وتفريغه إن وجد
+if (file_exists($linkFolder) && !is_link($linkFolder)) {
+    echo "تنبيه: وجدنا مجلد حقيقي. جاري تفريغه وحذفه للتحضير للرابط الرمزي...<br>";
+    // تفريغ المجلد
+    function deleteDirectory($dir) {
+        if (!file_exists($dir)) return true;
+        if (!is_dir($dir)) return @unlink($dir);
+        foreach (scandir($dir) as $item) {
+            if ($item == '.' || $item == '..') continue;
+            if (!deleteDirectory($dir . '/' . $item)) return false;
+        }
+        return @rmdir($dir);
+    }
+    deleteDirectory($linkFolder);
+}
 
-// التحقق من الرابط الرمزي
+// 2. محاولة إنشاء الرابط الرمزي الآن
+if (!file_exists($linkFolder) && !is_link($linkFolder)) {
+    echo "جاري محاولة إنشاء الرابط الرمزي الآن...<br>";
+    if (symlink($targetFolder, $linkFolder)) {
+        echo "<span style='color:green; font-weight:bold;'>✅ تم إنشاء الرابط الرمزي (Symlink) بنجاح!</span><br>";
+    } else {
+        echo "<span style='color:red; font-weight:bold;'>❌ فشل إنشاء الرابط الرمزي. قد تكون الدالة symlink معطلة من الاستضافة.</span><br>";
+    }
+}
+
+// 3. التحقق النهائي من حالة الرابط الرمزي بعد محاولة الإنشاء
 if (is_link($linkFolder)) {
-    echo "<span style='color:green;'>الرابط الرمزي موجود (Link is active)</span><br>";
+    echo "<span style='color:green;'>الرابط الرمزي نشط حالياً (Link is active)</span><br>";
     echo "يشير إلى: " . readlink($linkFolder) . "<br>";
     if (file_exists(readlink($linkFolder))) {
-        echo "<span style='color:green;'>المجلد المستهدف قابل للوصول عبر الرابط الرمزي</span><br>";
+        echo "<span style='color:green;'>المجلد المستهدف قابل للوصول عبر الرابط الرمزي بشكل كامل</span><br>";
     } else {
         echo "<span style='color:red;'>المجلد المستهدف غير قابل للوصول (رابط معطل)</span><br>";
     }
 } else {
-    echo "<span style='color:red;'>الرابط الرمزي غير موجود!</span><br>";
+    echo "<span style='color:red;'>الرابط الرمزي غير موجود حتى الآن!</span><br>";
 }
 
 // محاولة كتابة ملف فحص صغير داخل مجلد الصور للتأكد من إمكانية قراءته بالمتصفح
