@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Head, useForm, router, usePage, Link } from '@inertiajs/react';
+import { Head, useForm, router, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,12 +22,17 @@ import {
     Edit3,
     Trash2,
     Eye,
-    TrendingUp,
     CheckCircle2,
     XCircle,
     UploadCloud,
     Image as ImageIcon,
+    Tag,
 } from 'lucide-react';
+
+interface TrustItem {
+    name: string;
+    code: string;
+}
 
 interface Customer {
     id: number;
@@ -42,9 +47,9 @@ interface Customer {
     inside_residential_area: boolean;
     nearest_landmark: string | null;
     customer_area: string | null;
+    district: string | null;
     estimated_area: string | null; // '10_30', '30_80', '80_plus'
-    trust_items: string[] | null;
-    trust_code: string | null;
+    trust_items: TrustItem[] | null;
     sign_type: string | null;
     phone: string | null;
     refrigerator_photo: string | null;
@@ -60,6 +65,11 @@ interface PaginationLink {
     active: boolean;
 }
 
+interface TrustTypeMaster {
+    id: number;
+    name: string;
+}
+
 interface Props {
     customers: {
         data: Customer[];
@@ -73,11 +83,14 @@ interface Props {
         search?: string;
         status?: string;
         classification?: string;
+        district?: string;
         per_page?: string;
     };
+    trust_types: TrustTypeMaster[];
+    districtsList: string[];
 }
 
-export default function Index({ customers, filters }: Props) {
+export default function Index({ customers, filters, trust_types, districtsList }: Props) {
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
     const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
@@ -91,6 +104,7 @@ export default function Index({ customers, filters }: Props) {
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
     const [classificationFilter, setClassificationFilter] = useState(filters.classification || 'all');
+    const [districtFilter, setDistrictFilter] = useState(filters.district || 'all');
     const [perPage, setPerPage] = useState(filters.per_page || '10');
 
     // Real-time automatic polling: Auto-refresh list every 5 seconds silently
@@ -119,6 +133,7 @@ export default function Index({ customers, filters }: Props) {
                     search: searchTerm || undefined,
                     status: statusFilter !== 'all' ? statusFilter : undefined,
                     classification: classificationFilter !== 'all' ? classificationFilter : undefined,
+                    district: districtFilter !== 'all' ? districtFilter : undefined,
                     per_page: perPage !== '10' ? perPage : undefined,
                 },
                 {
@@ -130,12 +145,13 @@ export default function Index({ customers, filters }: Props) {
         }, 300); // 300ms debounce for search keystrokes
 
         return () => clearTimeout(delayDebounceFn);
-    }, [searchTerm, statusFilter, classificationFilter, perPage]);
+    }, [searchTerm, statusFilter, classificationFilter, districtFilter, perPage]);
 
     const resetFilters = () => {
         setSearchTerm('');
         setStatusFilter('all');
         setClassificationFilter('all');
+        setDistrictFilter('all');
         setPerPage('10');
     };
 
@@ -148,8 +164,8 @@ export default function Index({ customers, filters }: Props) {
             if (!L) return;
 
             const form = mapTargetForm === 'add' ? addForm : editForm;
-            const initLat = parseFloat(form.data.latitude) || 33.3152;
-            const initLng = parseFloat(form.data.longitude) || 44.3661;
+            const initLat = parseFloat(form.data.latitude) || 30.5081;
+            const initLng = parseFloat(form.data.longitude) || 47.7835; // Default Basra Coords
 
             const mapContainer = document.getElementById('map-picker-canvas');
             if (!mapContainer) return;
@@ -163,7 +179,7 @@ export default function Index({ customers, filters }: Props) {
                 parent.replaceChild(newDiv, mapContainer);
             }
 
-            const map = L.map('map-picker-canvas').setView([initLat, initLng], 13);
+            const map = L.map('map-picker-canvas').setView([initLat, initLng], 12);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '© OpenStreetMap'
@@ -199,9 +215,9 @@ export default function Index({ customers, filters }: Props) {
         inside_residential_area: false,
         nearest_landmark: '',
         customer_area: '',
-        estimated_area: '10_30',
-        trust_items: [] as string[],
-        trust_code: '',
+        district: '',
+        estimated_area: '', // Left empty to force selection
+        trust_items: [] as TrustItem[],
         sign_type: '',
         phone: '',
         refrigerator_photo: null as File | null,
@@ -221,9 +237,9 @@ export default function Index({ customers, filters }: Props) {
         inside_residential_area: false,
         nearest_landmark: '',
         customer_area: '',
-        estimated_area: '10_30',
-        trust_items: [] as string[],
-        trust_code: '',
+        district: '',
+        estimated_area: '',
+        trust_items: [] as TrustItem[],
         sign_type: '',
         phone: '',
         refrigerator_photo: null as File | null,
@@ -246,33 +262,12 @@ export default function Index({ customers, filters }: Props) {
                     }
                 },
                 (error) => {
-                    alert('عذراً، فشل الحصول على الموقع الحالي.');
+                    alert('عذراً، فشل الحصول على الموقع الحالي. تأكد من تفعيل الـ GPS وصلاحيات الموقع.');
                 }
             );
         } else {
             alert('المتصفح لا يدعم تحديد الموقع الجغرافي.');
         }
-    };
-
-    const trustOptions = [
-        'براد رند',
-        'براد ارسي',
-        'براد فينو',
-        'براد لايون',
-        'مجمدة ابو جنه',
-        'ستاند',
-    ];
-
-    const handleTrustItemsChange = (item: string, isChecked: boolean, formType: 'add' | 'edit') => {
-        const form = formType === 'add' ? addForm : editForm;
-        const currentItems = [...form.data.trust_items];
-        if (isChecked) {
-            currentItems.push(item);
-        } else {
-            const index = currentItems.indexOf(item);
-            if (index > -1) currentItems.splice(index, 1);
-        }
-        form.setData({ ...form.data, trust_items: currentItems });
     };
 
     const handleAddSubmit = (e: React.FormEvent) => {
@@ -299,9 +294,9 @@ export default function Index({ customers, filters }: Props) {
             inside_residential_area: c.inside_residential_area,
             nearest_landmark: c.nearest_landmark || '',
             customer_area: c.customer_area || '',
-            estimated_area: c.estimated_area || '10_30',
+            district: c.district || '',
+            estimated_area: c.estimated_area || '',
             trust_items: c.trust_items || [],
-            trust_code: c.trust_code || '',
             sign_type: c.sign_type || '',
             phone: c.phone || '',
             refrigerator_photo: null,
@@ -315,7 +310,6 @@ export default function Index({ customers, filters }: Props) {
         e.preventDefault();
         if (!editingCustomer) return;
 
-        // Laravel requires POST with _method = PUT for multipart data uploads
         editForm.post(route('customers.update', editingCustomer.id), {
             onSuccess: () => {
                 setEditingCustomer(null);
@@ -344,7 +338,7 @@ export default function Index({ customers, filters }: Props) {
                             بيانات عملاء الهادي
                         </h1>
                         <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">
-                            إدارة بيانات العملاء، الأمانات، تصنيف العملاء وتتبع إحداثيات المواقع التجارية
+                            إدارة بيانات العملاء، الأمانات بترميزها الفردي، وتصنيف وتتبع إحداثيات المواقع التجارية للأقضية
                         </p>
                     </div>
 
@@ -362,7 +356,7 @@ export default function Index({ customers, filters }: Props) {
                                     تسجيل عميل جديد
                                 </DialogTitle>
                                 <DialogDescription className="text-xs text-right">
-                                    قم بتعبئة حقول البيانات الكاملة لتسجيل العميل وحفظ الأمانات.
+                                    جميع حقول النموذج إجبارية. يرجى ملء البيانات كاملة لإتمام الحفظ بنجاح.
                                 </DialogDescription>
                             </DialogHeader>
 
@@ -370,103 +364,129 @@ export default function Index({ customers, filters }: Props) {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-right">
                                     {/* Name */}
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">اسم العميل الثلاثي</Label>
+                                        <Label className="text-xs font-semibold">اسم العميل الثلاثي *</Label>
                                         <Input
                                             value={addForm.data.full_name}
                                             placeholder="أدخل الاسم الثلاثي للعميل"
                                             onChange={(e) => addForm.setData('full_name', e.target.value)}
-                                            required
                                         />
+                                        {addForm.errors.full_name && <p className="text-xs text-destructive">{addForm.errors.full_name}</p>}
                                     </div>
 
                                     {/* Commercial Name */}
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">الاسم التجاري للعميل</Label>
+                                        <Label className="text-xs font-semibold">الاسم التجاري للعميل *</Label>
                                         <Input
                                             value={addForm.data.commercial_name}
                                             placeholder="مثال: أسواق النور"
                                             onChange={(e) => addForm.setData('commercial_name', e.target.value)}
-                                            required
                                         />
+                                        {addForm.errors.commercial_name && <p className="text-xs text-destructive">{addForm.errors.commercial_name}</p>}
                                     </div>
 
                                     {/* Phone */}
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">رقم هاتف العميل</Label>
+                                        <Label className="text-xs font-semibold">رقم هاتف العميل *</Label>
                                         <Input
                                             value={addForm.data.phone}
                                             placeholder="مثال: 07701234567"
                                             onChange={(e) => addForm.setData('phone', e.target.value)}
                                             dir="ltr"
                                         />
+                                        {addForm.errors.phone && <p className="text-xs text-destructive">{addForm.errors.phone}</p>}
                                     </div>
 
                                     {/* Area */}
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">المنطقة</Label>
+                                        <Label className="text-xs font-semibold">المنطقة *</Label>
                                         <Input
                                             value={addForm.data.customer_area}
-                                            placeholder="مثال: الكرادة"
+                                            placeholder="مثال: الجبيلة"
                                             onChange={(e) => addForm.setData('customer_area', e.target.value)}
                                         />
+                                        {addForm.errors.customer_area && <p className="text-xs text-destructive">{addForm.errors.customer_area}</p>}
+                                    </div>
+
+                                    {/* District (القضاء) */}
+                                    <div className="space-y-1.5 col-span-1 md:col-span-2">
+                                        <Label className="text-xs font-semibold">القضاء (البصرة) *</Label>
+                                        <Select
+                                            value={addForm.data.district}
+                                            onValueChange={(val) => addForm.setData('district', val)}
+                                        >
+                                            <SelectTrigger className="w-full">
+                                                <SelectValue placeholder="اختر القضاء التابع له المحل" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {districtsList.map((d) => (
+                                                    <SelectItem key={d} value={d}>{d}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        {addForm.errors.district && <p className="text-xs text-destructive">{addForm.errors.district}</p>}
                                     </div>
                                 </div>
 
                                 <Separator />
-                                <p className="text-xs font-bold text-muted-foreground text-right">العنوان وتحديد الموقع</p>
+                                <p className="text-xs font-bold text-muted-foreground text-right">العنوان وتحديد الموقع الجغرافي</p>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-right">
                                     <div className="space-y-1.5 col-span-1 md:col-span-2">
-                                        <Label className="text-xs font-semibold">أقرب نقطة دالة</Label>
+                                        <Label className="text-xs font-semibold">أقرب نقطة دالة *</Label>
                                         <Input
                                             value={addForm.data.nearest_landmark}
-                                            placeholder="مثال: قرب صيدلية الهلال"
+                                            placeholder="مثال: قرب مسجد البصرة الكبير"
                                             onChange={(e) => addForm.setData('nearest_landmark', e.target.value)}
                                         />
+                                        {addForm.errors.nearest_landmark && <p className="text-xs text-destructive">{addForm.errors.nearest_landmark}</p>}
                                     </div>
 
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-2 col-span-1 md:col-span-2 justify-start">
-                                        <div className="flex items-center gap-2">
-                                            <Checkbox
-                                                id="main_street_add"
-                                                checked={addForm.data.is_main_street}
-                                                onCheckedChange={(checked) => addForm.setData('is_main_street', !!checked)}
-                                            />
-                                            <Label htmlFor="main_street_add" className="text-xs font-semibold cursor-pointer">شارع رئيسي</Label>
-                                        </div>
+                                    <div className="space-y-1.5 col-span-1 md:col-span-2">
+                                        <Label className="text-xs font-semibold">خصائص موقع المحل (اختر واحد على الأقل) *</Label>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-2 justify-start">
+                                            <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id="main_street_add"
+                                                    checked={addForm.data.is_main_street}
+                                                    onCheckedChange={(checked) => addForm.setData('is_main_street', !!checked)}
+                                                />
+                                                <Label htmlFor="main_street_add" className="text-xs font-semibold cursor-pointer">شارع رئيسي</Label>
+                                            </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <Checkbox
-                                                id="side_street_add"
-                                                checked={addForm.data.is_side_street}
-                                                onCheckedChange={(checked) => addForm.setData('is_side_street', !!checked)}
-                                            />
-                                            <Label htmlFor="side_street_add" className="text-xs font-semibold cursor-pointer">شارع فرعي</Label>
-                                        </div>
+                                            <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id="side_street_add"
+                                                    checked={addForm.data.is_side_street}
+                                                    onCheckedChange={(checked) => addForm.setData('is_side_street', !!checked)}
+                                                />
+                                                <Label htmlFor="side_street_add" className="text-xs font-semibold cursor-pointer">شارع فرعي</Label>
+                                            </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <Checkbox
-                                                id="complex_add"
-                                                checked={addForm.data.inside_residential_complex}
-                                                onCheckedChange={(checked) => addForm.setData('inside_residential_complex', !!checked)}
-                                            />
-                                            <Label htmlFor="complex_add" className="text-xs font-semibold cursor-pointer">داخل مجمع سكني</Label>
-                                        </div>
+                                            <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id="complex_add"
+                                                    checked={addForm.data.inside_residential_complex}
+                                                    onCheckedChange={(checked) => addForm.setData('inside_residential_complex', !!checked)}
+                                                />
+                                                <Label htmlFor="complex_add" className="text-xs font-semibold cursor-pointer">داخل مجمع سكني</Label>
+                                            </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <Checkbox
-                                                id="area_add"
-                                                checked={addForm.data.inside_residential_area}
-                                                onCheckedChange={(checked) => addForm.setData('inside_residential_area', !!checked)}
-                                            />
-                                            <Label htmlFor="area_add" className="text-xs font-semibold cursor-pointer">داخل حي سكني</Label>
+                                            <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id="area_add"
+                                                    checked={addForm.data.inside_residential_area}
+                                                    onCheckedChange={(checked) => addForm.setData('inside_residential_area', !!checked)}
+                                                />
+                                                <Label htmlFor="area_add" className="text-xs font-semibold cursor-pointer">داخل حي سكني</Label>
+                                            </div>
                                         </div>
+                                        {(addForm.errors as any).street_types && <p className="text-xs text-destructive">{(addForm.errors as any).street_types}</p>}
                                     </div>
 
-                                    {/* Location selection */}
+                                    {/* Location coordinates */}
                                     <div className="space-y-1.5 col-span-1 md:col-span-2">
                                         <div className="flex items-center justify-between">
-                                            <Label className="text-xs font-semibold">إحداثيات الموقع التجاري (خط الطول والعرض)</Label>
+                                            <Label className="text-xs font-semibold">إحداثيات الموقع التجاري (خط الطول والعرض) *</Label>
                                             <div className="flex gap-1.5">
                                                 <Button
                                                     type="button"
@@ -507,64 +527,60 @@ export default function Index({ customers, filters }: Props) {
                                                 dir="ltr"
                                             />
                                         </div>
+                                        {(addForm.errors.latitude || addForm.errors.longitude) && (
+                                            <p className="text-xs text-destructive">خط الطول وخط العرض حقول إجبارية.</p>
+                                        )}
                                     </div>
 
                                     <div className="space-y-1.5 col-span-1 md:col-span-2">
-                                        <Label className="text-xs font-semibold">العنوان التفصيلي</Label>
+                                        <Label className="text-xs font-semibold">العنوان التفصيلي *</Label>
                                         <Input
                                             value={addForm.data.location_address}
-                                            placeholder="وصف العنوان كتابياً"
+                                            placeholder="اكتب تفاصيل العنوان والموقع الجغرافي بالتفصيل"
                                             onChange={(e) => addForm.setData('location_address', e.target.value)}
                                         />
+                                        {addForm.errors.location_address && <p className="text-xs text-destructive">{addForm.errors.location_address}</p>}
                                     </div>
                                 </div>
 
                                 <Separator />
-                                <p className="text-xs font-bold text-muted-foreground text-right">أمانات ومساحة المحل</p>
+                                <p className="text-xs font-bold text-muted-foreground text-right">الأمانات الفردية وخصائص المحل</p>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-right">
-                                    {/* Area space */}
+                                    {/* Estimated Area */}
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">المساحة التقديرية للمحل</Label>
+                                        <Label className="text-xs font-semibold">المساحة التقديرية للمحل *</Label>
                                         <Select
                                             value={addForm.data.estimated_area}
                                             onValueChange={(val) => addForm.setData('estimated_area', val)}
                                         >
                                             <SelectTrigger>
-                                                <SelectValue />
+                                                <SelectValue placeholder="اختر مساحة المحل" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="10_30">من 10 متر إلى 30 متر</SelectItem>
                                                 <SelectItem value="30_80">من 30 متر إلى 80 متر</SelectItem>
-                                                <SelectItem value="80_plus">من 80 متر إلى ...</SelectItem>
+                                                <SelectItem value="80_plus">من 80 متر فما فوق</SelectItem>
                                             </SelectContent>
                                         </Select>
-                                    </div>
-
-                                    {/* Code */}
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">كود الأمانة</Label>
-                                        <Input
-                                            value={addForm.data.trust_code}
-                                            placeholder="أدخل كود الأمانة"
-                                            onChange={(e) => addForm.setData('trust_code', e.target.value)}
-                                        />
+                                        {addForm.errors.estimated_area && <p className="text-xs text-destructive">{addForm.errors.estimated_area}</p>}
                                     </div>
 
                                     {/* Sign Type */}
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">نوع لافتة العميل</Label>
+                                        <Label className="text-xs font-semibold">نوع لافتة العميل *</Label>
                                         <Input
                                             value={addForm.data.sign_type}
-                                            placeholder="نوع اللافتة الإعلانية"
+                                            placeholder="مثال: لافتة ضوئية، فلكس..."
                                             onChange={(e) => addForm.setData('sign_type', e.target.value)}
                                         />
+                                        {addForm.errors.sign_type && <p className="text-xs text-destructive">{addForm.errors.sign_type}</p>}
                                     </div>
 
                                     {/* Classification & Status */}
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-2 gap-2 col-span-1 md:col-span-2">
                                         <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold">تصنيف العميل</Label>
+                                            <Label className="text-xs font-semibold">تصنيف العميل *</Label>
                                             <Select
                                                 value={addForm.data.classification}
                                                 onValueChange={(val) => addForm.setData('classification', val as 'A' | 'B' | 'C')}
@@ -578,10 +594,11 @@ export default function Index({ customers, filters }: Props) {
                                                     <SelectItem value="C">Class C</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            {addForm.errors.classification && <p className="text-xs text-destructive">{addForm.errors.classification}</p>}
                                         </div>
 
                                         <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold">حالة التعامل</Label>
+                                            <Label className="text-xs font-semibold">حالة التعامل *</Label>
                                             <Select
                                                 value={addForm.data.status}
                                                 onValueChange={(val) => addForm.setData('status', val as 'active' | 'inactive')}
@@ -594,29 +611,75 @@ export default function Index({ customers, filters }: Props) {
                                                     <SelectItem value="inactive">غير متعامل</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            {addForm.errors.status && <p className="text-xs text-destructive">{addForm.errors.status}</p>}
                                         </div>
                                     </div>
 
-                                    {/* Refrigerator items list */}
-                                    <div className="space-y-1.5 col-span-1 md:col-span-2 text-right">
-                                        <Label className="text-xs font-semibold block mb-1">أمانة لدى العميل (اختر ما ينطبق):</Label>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 py-1">
-                                            {trustOptions.map((option) => (
-                                                <div key={option} className="flex items-center gap-2">
-                                                    <Checkbox
-                                                        id={`item_add_${option}`}
-                                                        checked={addForm.data.trust_items.includes(option)}
-                                                        onCheckedChange={(checked) => handleTrustItemsChange(option, !!checked, 'add')}
-                                                    />
-                                                    <Label htmlFor={`item_add_${option}`} className="text-xs cursor-pointer font-medium">{option}</Label>
-                                                </div>
-                                            ))}
-                                        </div>
+                                    {/* Dynamic Trust Items List (Name + Individual Code) */}
+                                    <div className="space-y-3 col-span-1 md:col-span-2 text-right">
+                                        <Label className="text-xs font-semibold block mb-1">الأمانات المستلمة وترميزها (اختر واحدة على الأقل وسجل كودها) *</Label>
+                                        
+                                        {trust_types.length === 0 ? (
+                                            <p className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 p-2 rounded">
+                                                لا توجد أمانات معرفة حالياً في النظام. يرجى التوجه لصفحة "إدارة الأمانات" لإضافتها أولاً.
+                                            </p>
+                                        ) : (
+                                            <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto p-1 border border-border rounded-md">
+                                                {trust_types.map((type) => {
+                                                    const isChecked = addForm.data.trust_items.some(item => item.name === type.name);
+                                                    const selectedItem = addForm.data.trust_items.find(item => item.name === type.name);
+
+                                                    return (
+                                                        <div key={type.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 border border-border rounded bg-muted/10">
+                                                            <div className="flex items-center gap-2">
+                                                                <Checkbox
+                                                                    id={`item_add_${type.id}`}
+                                                                    checked={isChecked}
+                                                                    onCheckedChange={(checked) => {
+                                                                        let newItems = [...addForm.data.trust_items];
+                                                                        if (checked) {
+                                                                            newItems.push({ name: type.name, code: '' });
+                                                                        } else {
+                                                                            newItems = newItems.filter(item => item.name !== type.name);
+                                                                        }
+                                                                        addForm.setData('trust_items', newItems);
+                                                                    }}
+                                                                />
+                                                                <Label htmlFor={`item_add_${type.id}`} className="text-xs font-semibold cursor-pointer">{type.name}</Label>
+                                                            </div>
+                                                            {isChecked && (
+                                                                <div className="w-full sm:w-48">
+                                                                    <Input
+                                                                        placeholder="كود الأمانة..."
+                                                                        value={selectedItem?.code || ''}
+                                                                        onChange={(e) => {
+                                                                            const newItems = addForm.data.trust_items.map(item => {
+                                                                                if (item.name === type.name) {
+                                                                                    return { ...item, code: e.target.value };
+                                                                                }
+                                                                                return item;
+                                                                                
+                                                                            });
+                                                                            addForm.setData('trust_items', newItems);
+                                                                        }}
+                                                                        className="h-8 text-xs font-mono"
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                        {addForm.errors.trust_items && <p className="text-xs text-destructive">{addForm.errors.trust_items}</p>}
+                                        {Object.keys(addForm.errors).some(k => k.startsWith('trust_items.')) && (
+                                            <p className="text-xs text-destructive">يجب تسجيل كود لكل أمانة محددة للعميل.</p>
+                                        )}
                                     </div>
 
                                     {/* File upload */}
                                     <div className="space-y-1.5 col-span-1 md:col-span-2">
-                                        <Label className="text-xs font-semibold block">صورة لبراد العميل</Label>
+                                        <Label className="text-xs font-semibold block">صورة لبراد العميل *</Label>
                                         <div className="flex items-center gap-3 mt-1.5">
                                             <Input
                                                 type="file"
@@ -636,6 +699,7 @@ export default function Index({ customers, filters }: Props) {
                                                 <span className="text-[10px] text-muted-foreground">صيغ الصور فقط (JPG, PNG) بحد أقصى 4 ميجابايت</span>
                                             </Label>
                                         </div>
+                                        {addForm.errors.refrigerator_photo && <p className="text-xs text-destructive">{addForm.errors.refrigerator_photo}</p>}
                                     </div>
                                 </div>
 
@@ -663,8 +727,8 @@ export default function Index({ customers, filters }: Props) {
                 {/* Filters card */}
                 <Card>
                     <CardContent className="pt-3 pb-3 px-3 md:pt-4 md:pb-4 md:px-6" dir="rtl">
-                        <div className="grid grid-cols-2 md:flex md:flex-row items-end gap-2 md:gap-3">
-                            {/* Search - full width on mobile */}
+                        <div className="grid grid-cols-2 lg:flex lg:flex-row items-end gap-2 md:gap-3">
+                            {/* Search */}
                             <div className="col-span-2 space-y-1 flex-1 w-full text-right">
                                 <div className="relative">
                                     <Search className="absolute right-2.5 top-2 size-3.5 text-muted-foreground" />
@@ -678,7 +742,7 @@ export default function Index({ customers, filters }: Props) {
                             </div>
 
                             {/* Status Filter */}
-                            <div className="space-y-1 w-full md:w-44 text-right">
+                            <div className="space-y-1 w-full md:w-36 text-right">
                                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                                     <SelectTrigger className="h-8 text-xs">
                                         <SelectValue placeholder="حالة التعامل" />
@@ -692,7 +756,7 @@ export default function Index({ customers, filters }: Props) {
                             </div>
 
                             {/* Classification Filter */}
-                            <div className="space-y-1 w-full md:w-44 text-right">
+                            <div className="space-y-1 w-full md:w-36 text-right">
                                 <Select value={classificationFilter} onValueChange={setClassificationFilter}>
                                     <SelectTrigger className="h-8 text-xs">
                                         <SelectValue placeholder="التصنيف" />
@@ -706,9 +770,24 @@ export default function Index({ customers, filters }: Props) {
                                 </Select>
                             </div>
 
-                            {(searchTerm || statusFilter !== 'all' || classificationFilter !== 'all') && (
-                                <div className="col-span-2 md:col-span-1 flex gap-2 w-full md:w-auto">
-                                    <Button variant="outline" onClick={resetFilters} className="w-full md:w-auto h-8 text-xs">
+                            {/* District Filter */}
+                            <div className="space-y-1 w-full md:w-44 text-right">
+                                <Select value={districtFilter} onValueChange={setDistrictFilter}>
+                                    <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder="القضاء" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">كل الأقضية</SelectItem>
+                                        {districtsList.map((d) => (
+                                            <SelectItem key={d} value={d}>{d}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {(searchTerm || statusFilter !== 'all' || classificationFilter !== 'all' || districtFilter !== 'all') && (
+                                <div className="col-span-2 lg:col-span-1 flex gap-2 w-full lg:w-auto">
+                                    <Button variant="outline" onClick={resetFilters} className="w-full lg:w-auto h-8 text-xs">
                                         ↺ إعادة ضبط
                                     </Button>
                                 </div>
@@ -740,11 +819,11 @@ export default function Index({ customers, filters }: Props) {
                                             <TableRow>
                                                 <TableHead className="text-right">الاسم التجاري</TableHead>
                                                 <TableHead className="text-right">الاسم الثلاثي</TableHead>
+                                                <TableHead className="text-right">القضاء والمنطقة</TableHead>
                                                 <TableHead className="text-right">الهاتف</TableHead>
-                                                <TableHead className="text-right">المنطقة</TableHead>
                                                 <TableHead className="text-right">التصنيف</TableHead>
                                                 <TableHead className="text-right">حالة التعامل</TableHead>
-                                                <TableHead className="text-right">الأمانات</TableHead>
+                                                <TableHead className="text-right">الأمانات وأكوادها</TableHead>
                                                 <TableHead className="text-center">الإجراءات</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -760,6 +839,12 @@ export default function Index({ customers, filters }: Props) {
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-xs">{c.full_name}</TableCell>
+                                                    <TableCell className="text-xs">
+                                                        <div className="flex flex-col">
+                                                            <span className="font-semibold">{c.district || '-'}</span>
+                                                            <span className="text-[10px] text-muted-foreground">{c.customer_area || '-'}</span>
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell className="font-mono text-xs text-muted-foreground">
                                                         {c.phone ? (
                                                             <span className="flex items-center gap-1">
@@ -768,7 +853,6 @@ export default function Index({ customers, filters }: Props) {
                                                             </span>
                                                         ) : '-'}
                                                     </TableCell>
-                                                    <TableCell className="text-xs">{c.customer_area || '-'}</TableCell>
                                                     <TableCell>
                                                         <Badge variant="default" className="text-[10px] font-bold">
                                                             Class {c.classification}
@@ -788,13 +872,17 @@ export default function Index({ customers, filters }: Props) {
                                                         )}
                                                     </TableCell>
                                                     <TableCell>
-                                                        <div className="flex flex-wrap gap-1 max-w-[180px]">
+                                                        <div className="flex flex-wrap gap-1 max-w-[200px]">
                                                             {c.trust_items && c.trust_items.length > 0 ? (
                                                                 c.trust_items.map((item, idx) => (
-                                                                    <Badge key={idx} variant="secondary" className="text-[9px] px-1 py-0">{item}</Badge>
+                                                                    <Badge key={idx} variant="secondary" className="text-[9px] px-1 py-0 font-semibold gap-1">
+                                                                        <Tag className="size-2 text-primary" />
+                                                                        {item.name}
+                                                                        {item.code && <span className="font-mono text-muted-foreground text-[8px] bg-muted px-1 rounded">({item.code})</span>}
+                                                                    </Badge>
                                                                 ))
                                                             ) : (
-                                                                <span className="text-[10px] text-muted-foreground">لا يوجد</span>
+                                                                <span className="text-[10px] text-muted-foreground">لا يوجد أمانات</span>
                                                             )}
                                                         </div>
                                                     </TableCell>
@@ -842,7 +930,7 @@ export default function Index({ customers, filters }: Props) {
                                         <div key={c.id} className="flex items-center justify-between p-4 hover:bg-muted/30">
                                             <div className="flex flex-col text-right">
                                                 <span className="text-sm font-bold text-foreground">{c.full_name}</span>
-                                                <span className="text-xs text-muted-foreground mt-0.5">{c.commercial_name}</span>
+                                                <span className="text-xs text-muted-foreground mt-0.5">{c.commercial_name} ({c.district || '-'})</span>
                                             </div>
                                             <Link href={route('customers.show', c.id)}>
                                                 <Button
@@ -908,13 +996,14 @@ export default function Index({ customers, filters }: Props) {
                                                                     search: searchTerm || undefined,
                                                                     status: statusFilter !== 'all' ? statusFilter : undefined,
                                                                     classification: classificationFilter !== 'all' ? classificationFilter : undefined,
+                                                                    district: districtFilter !== 'all' ? districtFilter : undefined,
                                                                     per_page: perPage !== '10' ? perPage : undefined,
                                                                 },
                                                                 { preserveState: true }
                                                             );
                                                         }}
                                                         dangerouslySetInnerHTML={{ __html: link.label }}
-                                                    />
+                                                     />
                                                 );
                                             })}
                                         </div>
@@ -937,6 +1026,7 @@ export default function Index({ customers, filters }: Props) {
                                                                 search: searchTerm || undefined,
                                                                 status: statusFilter !== 'all' ? statusFilter : undefined,
                                                                 classification: classificationFilter !== 'all' ? classificationFilter : undefined,
+                                                                district: districtFilter !== 'all' ? districtFilter : undefined,
                                                                 per_page: perPage !== '10' ? perPage : undefined,
                                                             },
                                                             { preserveState: true }
@@ -967,6 +1057,7 @@ export default function Index({ customers, filters }: Props) {
                                                                 search: searchTerm || undefined,
                                                                 status: statusFilter !== 'all' ? statusFilter : undefined,
                                                                 classification: classificationFilter !== 'all' ? classificationFilter : undefined,
+                                                                district: districtFilter !== 'all' ? districtFilter : undefined,
                                                                 per_page: perPage !== '10' ? perPage : undefined,
                                                             },
                                                             { preserveState: true }
@@ -1000,41 +1091,66 @@ export default function Index({ customers, filters }: Props) {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-right">
                                     {/* Name */}
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">اسم العميل الثلاثي</Label>
+                                        <Label className="text-xs font-semibold">اسم العميل الثلاثي *</Label>
                                         <Input
                                             value={editForm.data.full_name}
                                             onChange={(e) => editForm.setData('full_name', e.target.value)}
                                             required
                                         />
+                                        {editForm.errors.full_name && <p className="text-xs text-destructive">{editForm.errors.full_name}</p>}
                                     </div>
 
                                     {/* Commercial Name */}
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">الاسم التجاري للعميل</Label>
+                                        <Label className="text-xs font-semibold">الاسم التجاري للعميل *</Label>
                                         <Input
                                             value={editForm.data.commercial_name}
                                             onChange={(e) => editForm.setData('commercial_name', e.target.value)}
                                             required
                                         />
+                                        {editForm.errors.commercial_name && <p className="text-xs text-destructive">{editForm.errors.commercial_name}</p>}
                                     </div>
 
                                     {/* Phone */}
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">رقم هاتف العميل</Label>
+                                        <Label className="text-xs font-semibold">رقم هاتف العميل *</Label>
                                         <Input
                                             value={editForm.data.phone}
                                             onChange={(e) => editForm.setData('phone', e.target.value)}
                                             dir="ltr"
+                                            required
                                         />
+                                        {editForm.errors.phone && <p className="text-xs text-destructive">{editForm.errors.phone}</p>}
                                     </div>
 
                                     {/* Area */}
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">المنطقة</Label>
+                                        <Label className="text-xs font-semibold">المنطقة *</Label>
                                         <Input
                                             value={editForm.data.customer_area}
                                             onChange={(e) => editForm.setData('customer_area', e.target.value)}
+                                            required
                                         />
+                                        {editForm.errors.customer_area && <p className="text-xs text-destructive">{editForm.errors.customer_area}</p>}
+                                    </div>
+
+                                    {/* District (القضاء) */}
+                                    <div className="space-y-1.5 col-span-1 md:col-span-2">
+                                        <Label className="text-xs font-semibold">القضاء (البصرة) *</Label>
+                                        <Select
+                                            value={editForm.data.district}
+                                            onValueChange={(val) => editForm.setData('district', val)}
+                                        >
+                                            <SelectTrigger className="w-full">
+                                                <SelectValue placeholder="اختر القضاء التابع له المحل" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {districtsList.map((d) => (
+                                                    <SelectItem key={d} value={d}>{d}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        {editForm.errors.district && <p className="text-xs text-destructive">{editForm.errors.district}</p>}
                                     </div>
                                 </div>
 
@@ -1043,55 +1159,61 @@ export default function Index({ customers, filters }: Props) {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-right">
                                     <div className="space-y-1.5 col-span-1 md:col-span-2">
-                                        <Label className="text-xs font-semibold">أقرب نقطة دالة</Label>
+                                        <Label className="text-xs font-semibold">أقرب نقطة دالة *</Label>
                                         <Input
                                             value={editForm.data.nearest_landmark}
                                             onChange={(e) => editForm.setData('nearest_landmark', e.target.value)}
+                                            required
                                         />
+                                        {editForm.errors.nearest_landmark && <p className="text-xs text-destructive">{editForm.errors.nearest_landmark}</p>}
                                     </div>
 
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-2 col-span-1 md:col-span-2 justify-start">
-                                        <div className="flex items-center gap-2">
-                                            <Checkbox
-                                                id="main_street_edit"
-                                                checked={editForm.data.is_main_street}
-                                                onCheckedChange={(checked) => editForm.setData('is_main_street', !!checked)}
-                                            />
-                                            <Label htmlFor="main_street_edit" className="text-xs font-semibold cursor-pointer">شارع رئيسي</Label>
-                                        </div>
+                                    <div className="space-y-1.5 col-span-1 md:col-span-2">
+                                        <Label className="text-xs font-semibold">خصائص موقع المحل (اختر واحد على الأقل) *</Label>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-2 justify-start">
+                                            <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id="main_street_edit"
+                                                    checked={editForm.data.is_main_street}
+                                                    onCheckedChange={(checked) => editForm.setData('is_main_street', !!checked)}
+                                                />
+                                                <Label htmlFor="main_street_edit" className="text-xs font-semibold cursor-pointer">شارع رئيسي</Label>
+                                            </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <Checkbox
-                                                id="side_street_edit"
-                                                checked={editForm.data.is_side_street}
-                                                onCheckedChange={(checked) => editForm.setData('is_side_street', !!checked)}
-                                            />
-                                            <Label htmlFor="side_street_edit" className="text-xs font-semibold cursor-pointer">شارع فرعي</Label>
-                                        </div>
+                                            <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id="side_street_edit"
+                                                    checked={editForm.data.is_side_street}
+                                                    onCheckedChange={(checked) => editForm.setData('is_side_street', !!checked)}
+                                                />
+                                                <Label htmlFor="side_street_edit" className="text-xs font-semibold cursor-pointer">شارع فرعي</Label>
+                                            </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <Checkbox
-                                                id="complex_edit"
-                                                checked={editForm.data.inside_residential_complex}
-                                                onCheckedChange={(checked) => editForm.setData('inside_residential_complex', !!checked)}
-                                            />
-                                            <Label htmlFor="complex_edit" className="text-xs font-semibold cursor-pointer">داخل مجمع سكني</Label>
-                                        </div>
+                                            <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id="complex_edit"
+                                                    checked={editForm.data.inside_residential_complex}
+                                                    onCheckedChange={(checked) => editForm.setData('inside_residential_complex', !!checked)}
+                                                />
+                                                <Label htmlFor="complex_edit" className="text-xs font-semibold cursor-pointer">داخل مجمع سكني</Label>
+                                            </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <Checkbox
-                                                id="area_edit"
-                                                checked={editForm.data.inside_residential_area}
-                                                onCheckedChange={(checked) => editForm.setData('inside_residential_area', !!checked)}
-                                            />
-                                            <Label htmlFor="area_edit" className="text-xs font-semibold cursor-pointer">داخل حي سكني</Label>
+                                            <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id="area_edit"
+                                                    checked={editForm.data.inside_residential_area}
+                                                    onCheckedChange={(checked) => editForm.setData('inside_residential_area', !!checked)}
+                                                />
+                                                <Label htmlFor="area_edit" className="text-xs font-semibold cursor-pointer">داخل حي سكني</Label>
+                                            </div>
                                         </div>
+                                        {(editForm.errors as any).street_types && <p className="text-xs text-destructive">{(editForm.errors as any).street_types}</p>}
                                     </div>
 
                                     {/* Location selection */}
                                     <div className="space-y-1.5 col-span-1 md:col-span-2">
                                         <div className="flex items-center justify-between">
-                                            <Label className="text-xs font-semibold">إحداثيات الموقع التجاري (خط الطول والعرض)</Label>
+                                            <Label className="text-xs font-semibold">إحداثيات الموقع التجاري (خط الطول والعرض) *</Label>
                                             <div className="flex gap-1.5">
                                                 <Button
                                                     type="button"
@@ -1130,14 +1252,19 @@ export default function Index({ customers, filters }: Props) {
                                                 dir="ltr"
                                             />
                                         </div>
+                                        {(editForm.errors.latitude || editForm.errors.longitude) && (
+                                            <p className="text-xs text-destructive">خط الطول وخط العرض حقول إجبارية.</p>
+                                        )}
                                     </div>
 
                                     <div className="space-y-1.5 col-span-1 md:col-span-2">
-                                        <Label className="text-xs font-semibold">العنوان التفصيلي</Label>
+                                        <Label className="text-xs font-semibold">العنوان التفصيلي *</Label>
                                         <Input
                                             value={editForm.data.location_address}
                                             onChange={(e) => editForm.setData('location_address', e.target.value)}
+                                            required
                                         />
+                                        {editForm.errors.location_address && <p className="text-xs text-destructive">{editForm.errors.location_address}</p>}
                                     </div>
                                 </div>
 
@@ -1146,7 +1273,7 @@ export default function Index({ customers, filters }: Props) {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-right">
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">المساحة التقديرية للمحل</Label>
+                                        <Label className="text-xs font-semibold">المساحة التقديرية للمحل *</Label>
                                         <Select
                                             value={editForm.data.estimated_area}
                                             onValueChange={(val) => editForm.setData('estimated_area', val)}
@@ -1160,27 +1287,22 @@ export default function Index({ customers, filters }: Props) {
                                                 <SelectItem value="80_plus">من 80 متر إلى ...</SelectItem>
                                             </SelectContent>
                                         </Select>
+                                        {editForm.errors.estimated_area && <p className="text-xs text-destructive">{editForm.errors.estimated_area}</p>}
                                     </div>
 
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">كود الأمانة</Label>
-                                        <Input
-                                            value={editForm.data.trust_code}
-                                            onChange={(e) => editForm.setData('trust_code', e.target.value)}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">نوع لافتة العميل</Label>
+                                        <Label className="text-xs font-semibold">نوع لافتة العميل *</Label>
                                         <Input
                                             value={editForm.data.sign_type}
                                             onChange={(e) => editForm.setData('sign_type', e.target.value)}
+                                            required
                                         />
+                                        {editForm.errors.sign_type && <p className="text-xs text-destructive">{editForm.errors.sign_type}</p>}
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-2 gap-2 col-span-1 md:col-span-2">
                                         <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold">تصنيف العميل</Label>
+                                            <Label className="text-xs font-semibold">تصنيف العميل *</Label>
                                             <Select
                                                 value={editForm.data.classification}
                                                 onValueChange={(val) => editForm.setData('classification', val as 'A' | 'B' | 'C')}
@@ -1194,10 +1316,11 @@ export default function Index({ customers, filters }: Props) {
                                                     <SelectItem value="C">Class C</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            {editForm.errors.classification && <p className="text-xs text-destructive">{editForm.errors.classification}</p>}
                                         </div>
 
                                         <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold">حالة التعامل</Label>
+                                            <Label className="text-xs font-semibold">حالة التعامل *</Label>
                                             <Select
                                                 value={editForm.data.status}
                                                 onValueChange={(val) => editForm.setData('status', val as 'active' | 'inactive')}
@@ -1210,29 +1333,74 @@ export default function Index({ customers, filters }: Props) {
                                                     <SelectItem value="inactive">غير متعامل</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            {editForm.errors.status && <p className="text-xs text-destructive">{editForm.errors.status}</p>}
                                         </div>
                                     </div>
 
-                                    {/* Refrigerator items list */}
-                                    <div className="space-y-1.5 col-span-1 md:col-span-2 text-right">
-                                        <Label className="text-xs font-semibold block mb-1">أمانة لدى العميل (اختر ما ينطبق):</Label>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 py-1">
-                                            {trustOptions.map((option) => (
-                                                <div key={option} className="flex items-center gap-2">
-                                                    <Checkbox
-                                                        id={`item_edit_${option}`}
-                                                        checked={editForm.data.trust_items.includes(option)}
-                                                        onCheckedChange={(checked) => handleTrustItemsChange(option, !!checked, 'edit')}
-                                                    />
-                                                    <Label htmlFor={`item_edit_${option}`} className="text-xs cursor-pointer font-medium">{option}</Label>
-                                                </div>
-                                            ))}
-                                        </div>
+                                    {/* Dynamic Trust Items List on Edit */}
+                                    <div className="space-y-3 col-span-1 md:col-span-2 text-right">
+                                        <Label className="text-xs font-semibold block mb-1">الأمانات المستلمة وترميزها (اختر واحدة على الأقل وسجل كودها) *</Label>
+                                        
+                                        {trust_types.length === 0 ? (
+                                            <p className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 p-2 rounded">
+                                                لا توجد أمانات معرفة حالياً في النظام.
+                                            </p>
+                                        ) : (
+                                            <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto p-1 border border-border rounded-md">
+                                                {trust_types.map((type) => {
+                                                    const isChecked = editForm.data.trust_items.some(item => item.name === type.name);
+                                                    const selectedItem = editForm.data.trust_items.find(item => item.name === type.name);
+
+                                                    return (
+                                                        <div key={type.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 border border-border rounded bg-muted/10">
+                                                            <div className="flex items-center gap-2">
+                                                                <Checkbox
+                                                                    id={`item_edit_${type.id}`}
+                                                                    checked={isChecked}
+                                                                    onCheckedChange={(checked) => {
+                                                                        let newItems = [...editForm.data.trust_items];
+                                                                        if (checked) {
+                                                                            newItems.push({ name: type.name, code: '' });
+                                                                        } else {
+                                                                            newItems = newItems.filter(item => item.name !== type.name);
+                                                                        }
+                                                                        editForm.setData('trust_items', newItems);
+                                                                    }}
+                                                                />
+                                                                <Label htmlFor={`item_edit_${type.id}`} className="text-xs font-semibold cursor-pointer">{type.name}</Label>
+                                                            </div>
+                                                            {isChecked && (
+                                                                <div className="w-full sm:w-48">
+                                                                    <Input
+                                                                        placeholder="كود الأمانة..."
+                                                                        value={selectedItem?.code || ''}
+                                                                        onChange={(e) => {
+                                                                            const newItems = editForm.data.trust_items.map(item => {
+                                                                                if (item.name === type.name) {
+                                                                                    return { ...item, code: e.target.value };
+                                                                                }
+                                                                                return item;
+                                                                            });
+                                                                            editForm.setData('trust_items', newItems);
+                                                                        }}
+                                                                        className="h-8 text-xs font-mono"
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                        {editForm.errors.trust_items && <p className="text-xs text-destructive">{editForm.errors.trust_items}</p>}
+                                        {Object.keys(editForm.errors).some(k => k.startsWith('trust_items.')) && (
+                                            <p className="text-xs text-destructive">يجب تسجيل كود لكل أمانة محددة للعميل.</p>
+                                        )}
                                     </div>
 
                                     {/* File upload */}
                                     <div className="space-y-1.5 col-span-1 md:col-span-2">
-                                        <Label className="text-xs font-semibold block">صورة لبراد العميل (تحديث اختيارى)</Label>
+                                        <Label className="text-xs font-semibold block">صورة لبراد العميل (تحديث اختياري)</Label>
                                         {editingCustomer.refrigerator_photo && (
                                             <div className="flex items-center gap-2 py-1">
                                                 <ImageIcon className="size-4 text-muted-foreground" />
@@ -1257,6 +1425,7 @@ export default function Index({ customers, filters }: Props) {
                                                 </span>
                                             </Label>
                                         </div>
+                                        {editForm.errors.refrigerator_photo && <p className="text-xs text-destructive">{editForm.errors.refrigerator_photo}</p>}
                                     </div>
                                 </div>
 

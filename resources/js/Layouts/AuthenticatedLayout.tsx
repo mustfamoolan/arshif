@@ -15,6 +15,7 @@ import {
     PhoneCall,
     History,
     Download,
+    Tag,
 } from 'lucide-react';
 
 interface AuthenticatedProps {
@@ -95,6 +96,12 @@ export default function AuthenticatedLayout({ children, header }: AuthenticatedP
                       href: route('users.index'),
                       icon: Users,
                       active: route().current('users.index'),
+                  },
+                  {
+                      label: 'إدارة الأمانات',
+                      href: route('trust-types.index'),
+                      icon: Tag,
+                      active: route().current('trust-types.*'),
                   },
                   {
                       label: 'سجل العمليات',

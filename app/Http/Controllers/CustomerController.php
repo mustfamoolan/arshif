@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\TrustType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -10,6 +11,24 @@ use Inertia\Response;
 
 class CustomerController extends Controller
 {
+    // قائمة أقضية البصرة الـ 14 المعتمدة
+    protected $districts = [
+        'قضاء مركز البصرة',
+        'قضاء الزبير',
+        'قضاء أبي الخصيب',
+        'قضاء شط العرب',
+        'قضاء القرنة',
+        'قضاء الهارثة',
+        'قضاء الفاو',
+        'قضاء المدينة',
+        'قضاء الدير',
+        'قضاء الصادق',
+        'قضاء سفوان',
+        'قضاء أم قصر',
+        'قضاء عز الدين سليم',
+        'قضاء النشوة'
+    ];
+
     /**
      * Display a listing of the resource.
      */
@@ -38,6 +57,11 @@ class CustomerController extends Controller
             $query->where('classification', $request->input('classification'));
         }
 
+        // Filtering by district (القضاء)
+        if ($request->filled('district')) {
+            $query->where('district', $request->input('district'));
+        }
+
         // Get per page items limit
         $perPage = intval($request->input('per_page', 10));
         if (!in_array($perPage, [10, 25, 50, 100])) {
@@ -51,7 +75,9 @@ class CustomerController extends Controller
 
         return Inertia::render('Customers/Index', [
             'customers' => $customers,
-            'filters' => $request->only(['search', 'status', 'classification', 'per_page']),
+            'filters' => $request->only(['search', 'status', 'classification', 'district', 'per_page']),
+            'trust_types' => TrustType::orderBy('name')->get(),
+            'districtsList' => $this->districts,
         ]);
     }
 
@@ -63,24 +89,55 @@ class CustomerController extends Controller
         $validated = $request->validate([
             'full_name' => 'required|string|max:255',
             'commercial_name' => 'required|string|max:255',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
-            'location_address' => 'nullable|string|max:255',
-            'is_main_street' => 'nullable|boolean',
-            'is_side_street' => 'nullable|boolean',
-            'inside_residential_complex' => 'nullable|boolean',
-            'inside_residential_area' => 'nullable|boolean',
-            'nearest_landmark' => 'nullable|string|max:255',
-            'customer_area' => 'nullable|string|max:255',
-            'estimated_area' => 'nullable|string|in:10_30,30_80,80_plus',
-            'trust_items' => 'nullable|array',
-            'trust_code' => 'nullable|string|max:255',
-            'sign_type' => 'nullable|string|max:255',
-            'phone' => 'nullable|string|max:20',
-            'refrigerator_photo' => 'nullable|image|max:4096', // Max 4MB
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+            'location_address' => 'required|string|max:500',
+            'is_main_street' => 'boolean',
+            'is_side_street' => 'boolean',
+            'inside_residential_complex' => 'boolean',
+            'inside_residential_area' => 'boolean',
+            'nearest_landmark' => 'required|string|max:255',
+            'customer_area' => 'required|string|max:255',
+            'district' => 'required|string|in:' . implode(',', $this->districts),
+            'estimated_area' => 'required|string|in:10_30,30_80,80_plus',
+            'trust_items' => 'required|array|min:1',
+            'trust_items.*.name' => 'required|string|max:255',
+            'trust_items.*.code' => 'required|string|max:255',
+            'sign_type' => 'required|string|max:255',
+            'phone' => 'required|string|max:20',
+            'refrigerator_photo' => 'required|image|max:4096', // Max 4MB, required for store
             'status' => 'required|string|in:active,inactive',
             'classification' => 'required|string|in:A,B,C',
+        ], [
+            'full_name.required' => 'حقل الاسم الثلاثي مطلوب.',
+            'commercial_name.required' => 'حقل الاسم التجاري مطلوب.',
+            'latitude.required' => 'إحداثي خط العرض مطلوب.',
+            'longitude.required' => 'إحداثي خط الطول مطلوب.',
+            'location_address.required' => 'حقل العنوان التفصيلي مطلوب.',
+            'nearest_landmark.required' => 'حقل أقرب نقطة دالة مطلوب.',
+            'customer_area.required' => 'حقل المنطقة مطلوب.',
+            'district.required' => 'حقل القضاء مطلوب وهو إجباري.',
+            'district.in' => 'القضاء المحدد غير صالح.',
+            'estimated_area.required' => 'حقل المساحة التقديرية مطلوب.',
+            'trust_items.required' => 'يجب اختيار أمانة واحدة على الأقل وتحديد كود لها.',
+            'trust_items.min' => 'يجب اختيار أمانة واحدة على الأقل وتحديد كود لها.',
+            'trust_items.*.code.required' => 'حقل كود الأمانة مطلوب لكل أمانة محددة.',
+            'sign_type.required' => 'حقل نوع اللافتة مطلوب.',
+            'phone.required' => 'حقل رقم هاتف العميل مطلوب.',
+            'refrigerator_photo.required' => 'يجب رفع صورة لبراد العميل لتسجيله.',
+            'refrigerator_photo.image' => 'الملف المرفوع يجب أن يكون صورة.',
+            'refrigerator_photo.max' => 'حجم الصورة يجب ألا يتجاوز 4 ميجابايت.',
         ]);
+
+        // التحقق من تحديد خيار واحد على الأقل لخصائص موقع المحل
+        if (!$request->boolean('is_main_street') && 
+            !$request->boolean('is_side_street') && 
+            !$request->boolean('inside_residential_complex') && 
+            !$request->boolean('inside_residential_area')) {
+            return redirect()->back()->withErrors([
+                'street_types' => 'يجب اختيار خيار واحد على الأقل من خصائص موقع المحل.'
+            ])->withInput();
+        }
 
         $validated['created_by'] = auth()->id();
         $validated['is_main_street'] = $request->boolean('is_main_street');
@@ -95,7 +152,7 @@ class CustomerController extends Controller
 
         Customer::create($validated);
 
-        return redirect()->route('customers.index')->with('success', 'تم إضافة العميل بنجاح');
+        return redirect()->route('customers.index')->with('success', 'تم إضافة العميل بنجاح.');
     }
 
     /**
@@ -107,6 +164,8 @@ class CustomerController extends Controller
         
         return Inertia::render('Customers/Show', [
             'customer' => $customer,
+            'trust_types' => TrustType::orderBy('name')->get(),
+            'districtsList' => $this->districts,
         ]);
     }
 
@@ -118,24 +177,54 @@ class CustomerController extends Controller
         $validated = $request->validate([
             'full_name' => 'required|string|max:255',
             'commercial_name' => 'required|string|max:255',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
-            'location_address' => 'nullable|string|max:255',
-            'is_main_street' => 'nullable|boolean',
-            'is_side_street' => 'nullable|boolean',
-            'inside_residential_complex' => 'nullable|boolean',
-            'inside_residential_area' => 'nullable|boolean',
-            'nearest_landmark' => 'nullable|string|max:255',
-            'customer_area' => 'nullable|string|max:255',
-            'estimated_area' => 'nullable|string|in:10_30,30_80,80_plus',
-            'trust_items' => 'nullable|array',
-            'trust_code' => 'nullable|string|max:255',
-            'sign_type' => 'nullable|string|max:255',
-            'phone' => 'nullable|string|max:20',
-            'refrigerator_photo' => 'nullable|image|max:4096', // Max 4MB
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+            'location_address' => 'required|string|max:500',
+            'is_main_street' => 'boolean',
+            'is_side_street' => 'boolean',
+            'inside_residential_complex' => 'boolean',
+            'inside_residential_area' => 'boolean',
+            'nearest_landmark' => 'required|string|max:255',
+            'customer_area' => 'required|string|max:255',
+            'district' => 'required|string|in:' . implode(',', $this->districts),
+            'estimated_area' => 'required|string|in:10_30,30_80,80_plus',
+            'trust_items' => 'required|array|min:1',
+            'trust_items.*.name' => 'required|string|max:255',
+            'trust_items.*.code' => 'required|string|max:255',
+            'sign_type' => 'required|string|max:255',
+            'phone' => 'required|string|max:20',
+            'refrigerator_photo' => 'nullable|image|max:4096', // Nullable on update
             'status' => 'required|string|in:active,inactive',
             'classification' => 'required|string|in:A,B,C',
+        ], [
+            'full_name.required' => 'حقل الاسم الثلاثي مطلوب.',
+            'commercial_name.required' => 'حقل الاسم التجاري مطلوب.',
+            'latitude.required' => 'إحداثي خط العرض مطلوب.',
+            'longitude.required' => 'إحداثي خط الطول مطلوب.',
+            'location_address.required' => 'حقل العنوان التفصيلي مطلوب.',
+            'nearest_landmark.required' => 'حقل أقرب نقطة دالة مطلوب.',
+            'customer_area.required' => 'حقل المنطقة مطلوب.',
+            'district.required' => 'حقل القضاء مطلوب وهو إجباري.',
+            'district.in' => 'القضاء المحدد غير صالح.',
+            'estimated_area.required' => 'حقل المساحة التقديرية مطلوب.',
+            'trust_items.required' => 'يجب اختيار أمانة واحدة على الأقل وتحديد كود لها.',
+            'trust_items.min' => 'يجب اختيار أمانة واحدة على الأقل وتحديد كود لها.',
+            'trust_items.*.code.required' => 'حقل كود الأمانة مطلوب لكل أمانة محددة.',
+            'sign_type.required' => 'حقل نوع اللافتة مطلوب.',
+            'phone.required' => 'حقل رقم هاتف العميل مطلوب.',
+            'refrigerator_photo.image' => 'الملف المرفوع يجب أن يكون صورة.',
+            'refrigerator_photo.max' => 'حجم الصورة يجب ألا يتجاوز 4 ميجابايت.',
         ]);
+
+        // التحقق من تحديد خيار واحد على الأقل لخصائص موقع المحل
+        if (!$request->boolean('is_main_street') && 
+            !$request->boolean('is_side_street') && 
+            !$request->boolean('inside_residential_complex') && 
+            !$request->boolean('inside_residential_area')) {
+            return redirect()->back()->withErrors([
+                'street_types' => 'يجب اختيار خيار واحد على الأقل من خصائص موقع المحل.'
+            ])->withInput();
+        }
 
         $validated['is_main_street'] = $request->boolean('is_main_street');
         $validated['is_side_street'] = $request->boolean('is_side_street');
@@ -154,7 +243,7 @@ class CustomerController extends Controller
 
         $customer->update($validated);
 
-        return redirect()->route('customers.index')->with('success', 'تم تحديث بيانات العميل بنجاح');
+        return redirect()->route('customers.index')->with('success', 'تم تحديث بيانات العميل بنجاح.');
     }
 
     /**
@@ -169,6 +258,6 @@ class CustomerController extends Controller
 
         $customer->delete();
 
-        return redirect()->route('customers.index')->with('success', 'تم حذف العميل بنجاح');
+        return redirect()->route('customers.index')->with('success', 'تم حذف العميل بنجاح.');
     }
 }

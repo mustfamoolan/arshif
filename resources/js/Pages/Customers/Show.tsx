@@ -36,7 +36,13 @@ import {
     Loader2,
     CheckCircle2,
     XCircle,
+    Tag,
 } from 'lucide-react';
+
+interface TrustItem {
+    name: string;
+    code: string;
+}
 
 interface Customer {
     id: number;
@@ -51,9 +57,9 @@ interface Customer {
     inside_residential_area: boolean;
     nearest_landmark: string | null;
     customer_area: string | null;
+    district: string | null;
     estimated_area: string | null;
-    trust_items: string[] | null;
-    trust_code: string | null;
+    trust_items: TrustItem[] | null;
     sign_type: string | null;
     phone: string | null;
     refrigerator_photo: string | null;
@@ -63,11 +69,18 @@ interface Customer {
     creator?: { name: string };
 }
 
-interface Props {
-    customer: Customer;
+interface TrustTypeMaster {
+    id: number;
+    name: string;
 }
 
-export default function Show({ customer }: Props) {
+interface Props {
+    customer: Customer;
+    trust_types: TrustTypeMaster[];
+    districtsList: string[];
+}
+
+export default function Show({ customer, trust_types, districtsList }: Props) {
     // ─── Map ───────────────────────────────────────────────────
     useEffect(() => {
         if (!customer.latitude || !customer.longitude) return;
@@ -104,6 +117,7 @@ export default function Show({ customer }: Props) {
         commercial_name: customer.commercial_name,
         phone: customer.phone || '',
         customer_area: customer.customer_area || '',
+        district: customer.district || '',
         nearest_landmark: customer.nearest_landmark || '',
         location_address: customer.location_address || '',
         latitude: customer.latitude?.toString() || '',
@@ -113,9 +127,8 @@ export default function Show({ customer }: Props) {
         inside_residential_complex: customer.inside_residential_complex,
         inside_residential_area: customer.inside_residential_area,
         estimated_area: customer.estimated_area || '',
-        trust_code: customer.trust_code || '',
         sign_type: customer.sign_type || '',
-        trust_items: (customer.trust_items || []).join('، '),
+        trust_items: customer.trust_items || [] as TrustItem[],
         status: customer.status,
         classification: customer.classification,
         refrigerator_photo: null as File | null,
@@ -123,12 +136,23 @@ export default function Show({ customer }: Props) {
 
     const handleEditSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // التحقق من تحديد خيار واحد على الأقل لخصائص موقع المحل
+        if (!editForm.data.is_main_street && 
+            !editForm.data.is_side_street && 
+            !editForm.data.inside_residential_complex && 
+            !editForm.data.inside_residential_area) {
+            alert('يجب اختيار خيار واحد على الأقل من خصائص موقع المحل.');
+            return;
+        }
+
         const formData = new FormData();
         formData.append('_method', 'PUT');
         formData.append('full_name', editForm.data.full_name);
         formData.append('commercial_name', editForm.data.commercial_name);
         formData.append('phone', editForm.data.phone);
         formData.append('customer_area', editForm.data.customer_area);
+        formData.append('district', editForm.data.district);
         formData.append('nearest_landmark', editForm.data.nearest_landmark);
         formData.append('location_address', editForm.data.location_address);
         formData.append('latitude', editForm.data.latitude);
@@ -138,12 +162,14 @@ export default function Show({ customer }: Props) {
         formData.append('inside_residential_complex', editForm.data.inside_residential_complex ? '1' : '0');
         formData.append('inside_residential_area', editForm.data.inside_residential_area ? '1' : '0');
         formData.append('estimated_area', editForm.data.estimated_area);
-        formData.append('trust_code', editForm.data.trust_code);
         formData.append('sign_type', editForm.data.sign_type);
-        // Convert comma-separated trust_items back to array entries
-        editForm.data.trust_items.split(/[,،]/).map(s => s.trim()).filter(Boolean).forEach((item) => {
-            formData.append('trust_items[]', item);
+        
+        // Append trust items as array of objects in FormData
+        editForm.data.trust_items.forEach((item, idx) => {
+            formData.append(`trust_items[${idx}][name]`, item.name);
+            formData.append(`trust_items[${idx}][code]`, item.code);
         });
+
         formData.append('status', editForm.data.status);
         formData.append('classification', editForm.data.classification);
         if (editForm.data.refrigerator_photo) {
@@ -276,10 +302,10 @@ export default function Show({ customer }: Props) {
                                         </span>
                                     </div>
                                     <div className="space-y-1">
-                                        <span className="text-[11px] text-muted-foreground block">المنطقة</span>
+                                        <span className="text-[11px] text-muted-foreground block">القضاء والمنطقة</span>
                                         <span className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
                                             <MapPin className="size-3.5 text-muted-foreground" />
-                                            {customer.customer_area || 'غير محددة'}
+                                            {customer.district ? `${customer.district} - ` : ''}{customer.customer_area || 'غير محددة'}
                                         </span>
                                     </div>
                                 </div>
@@ -350,7 +376,7 @@ export default function Show({ customer }: Props) {
                     {/* Right Col */}
                     <div className="space-y-5">
 
-                        {/* Trust Items */}
+                        {/* Trust Items with Individual Codes */}
                         <Card>
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-sm font-bold text-muted-foreground flex items-center gap-2">
@@ -359,12 +385,6 @@ export default function Show({ customer }: Props) {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="space-y-1">
-                                    <span className="text-[11px] text-muted-foreground block">كود الأمانة</span>
-                                    <span className="text-sm font-mono font-semibold bg-muted px-2 py-0.5 rounded text-[11px] text-foreground inline-block">
-                                        {customer.trust_code || 'غير متوفر'}
-                                    </span>
-                                </div>
                                 <div className="space-y-1">
                                     <span className="text-[11px] text-muted-foreground block">المساحة التقديرية</span>
                                     <p className="text-sm font-semibold text-foreground">
@@ -379,17 +399,26 @@ export default function Show({ customer }: Props) {
                                     <p className="text-sm font-semibold text-foreground">{customer.sign_type || 'لا يوجد'}</p>
                                 </div>
                                 <Separator />
-                                <div className="space-y-2">
-                                    <span className="text-[11px] text-muted-foreground block">الأمانات المستلمة</span>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {customer.trust_items && customer.trust_items.length > 0 ? (
-                                            customer.trust_items.map((item, idx) => (
-                                                <Badge key={idx} variant="secondary" className="text-[10px] px-2 py-0.5 font-semibold">{item}</Badge>
-                                            ))
-                                        ) : (
-                                            <span className="text-xs text-muted-foreground">لا يوجد أمانات</span>
-                                        )}
-                                    </div>
+                                
+                                <div className="space-y-3">
+                                    <span className="text-[11px] text-muted-foreground block font-bold">الأمانات المستلمة وأكوادها الفردية:</span>
+                                    {customer.trust_items && customer.trust_items.length > 0 ? (
+                                        <div className="space-y-2">
+                                            {customer.trust_items.map((item, idx) => (
+                                                <div key={idx} className="flex items-center justify-between p-2 border border-border rounded-lg bg-muted/30">
+                                                    <div className="flex items-center gap-1.5 text-xs font-semibold">
+                                                        <Tag className="size-3.5 text-primary" />
+                                                        <span>{item.name}</span>
+                                                    </div>
+                                                    <span className="font-mono text-xs font-bold text-foreground bg-background border border-border px-2 py-0.5 rounded">
+                                                        {item.code || 'بلا كود'}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs text-muted-foreground">لا يوجد أمانات مسجلة</span>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
@@ -463,74 +492,102 @@ export default function Show({ customer }: Props) {
                             تعديل بيانات العميل
                         </DialogTitle>
                         <DialogDescription className="text-xs text-right">
-                            قم بتعديل البيانات ثم اضغط حفظ التعديلات.
+                            قم بتعديل البيانات ثم اضغط حفظ التعديلات. جميع الحقول المعلمة بـ * هي إلزامية.
                         </DialogDescription>
                     </DialogHeader>
 
                     <form onSubmit={handleEditSubmit} className="space-y-4 py-2" encType="multipart/form-data">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-right">
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold">الاسم الثلاثي</Label>
+                                <Label className="text-xs font-semibold">الاسم الثلاثي *</Label>
                                 <Input value={editForm.data.full_name} onChange={e => editForm.setData('full_name', e.target.value)} required />
                                 {editForm.errors.full_name && <p className="text-xs text-destructive">{editForm.errors.full_name}</p>}
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold">الاسم التجاري</Label>
+                                <Label className="text-xs font-semibold">الاسم التجاري *</Label>
                                 <Input value={editForm.data.commercial_name} onChange={e => editForm.setData('commercial_name', e.target.value)} required />
                                 {editForm.errors.commercial_name && <p className="text-xs text-destructive">{editForm.errors.commercial_name}</p>}
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold">رقم الهاتف</Label>
-                                <Input value={editForm.data.phone} onChange={e => editForm.setData('phone', e.target.value)} dir="ltr" />
+                                <Label className="text-xs font-semibold">رقم الهاتف *</Label>
+                                <Input value={editForm.data.phone} onChange={e => editForm.setData('phone', e.target.value)} dir="ltr" required />
+                                {editForm.errors.phone && <p className="text-xs text-destructive">{editForm.errors.phone}</p>}
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold">المنطقة</Label>
-                                <Input value={editForm.data.customer_area} onChange={e => editForm.setData('customer_area', e.target.value)} />
+                                <Label className="text-xs font-semibold">المنطقة *</Label>
+                                <Input value={editForm.data.customer_area} onChange={e => editForm.setData('customer_area', e.target.value)} required />
+                                {editForm.errors.customer_area && <p className="text-xs text-destructive">{editForm.errors.customer_area}</p>}
                             </div>
                             <div className="space-y-1.5 col-span-1 md:col-span-2">
-                                <Label className="text-xs font-semibold">أقرب نقطة دالة</Label>
-                                <Input value={editForm.data.nearest_landmark} onChange={e => editForm.setData('nearest_landmark', e.target.value)} />
+                                <Label className="text-xs font-semibold">القضاء (البصرة) *</Label>
+                                <Select
+                                    value={editForm.data.district}
+                                    onValueChange={(val) => editForm.setData('district', val)}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="اختر القضاء" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {districtsList.map((d) => (
+                                            <SelectItem key={d} value={d}>{d}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {editForm.errors.district && <p className="text-xs text-destructive">{editForm.errors.district}</p>}
                             </div>
                             <div className="space-y-1.5 col-span-1 md:col-span-2">
-                                <Label className="text-xs font-semibold">وصف العنوان التفصيلي</Label>
-                                <Textarea value={editForm.data.location_address} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => editForm.setData('location_address', e.target.value)} rows={2} />
+                                <Label className="text-xs font-semibold">أقرب نقطة دالة *</Label>
+                                <Input value={editForm.data.nearest_landmark} onChange={e => editForm.setData('nearest_landmark', e.target.value)} required />
+                                {editForm.errors.nearest_landmark && <p className="text-xs text-destructive">{editForm.errors.nearest_landmark}</p>}
+                            </div>
+                            <div className="space-y-1.5 col-span-1 md:col-span-2">
+                                <Label className="text-xs font-semibold">وصف العنوان بالتفصيل *</Label>
+                                <Textarea value={editForm.data.location_address} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => editForm.setData('location_address', e.target.value)} rows={2} required />
+                                {editForm.errors.location_address && <p className="text-xs text-destructive">{editForm.errors.location_address}</p>}
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold">خط العرض (Latitude)</Label>
-                                <Input value={editForm.data.latitude} onChange={e => editForm.setData('latitude', e.target.value)} dir="ltr" />
+                                <Label className="text-xs font-semibold">خط العرض (Latitude) *</Label>
+                                <Input value={editForm.data.latitude} onChange={e => editForm.setData('latitude', e.target.value)} dir="ltr" required />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold">خط الطول (Longitude)</Label>
-                                <Input value={editForm.data.longitude} onChange={e => editForm.setData('longitude', e.target.value)} dir="ltr" />
+                                <Label className="text-xs font-semibold">خط الطول (Longitude) *</Label>
+                                <Input value={editForm.data.longitude} onChange={e => editForm.setData('longitude', e.target.value)} dir="ltr" required />
                             </div>
+                            {(editForm.errors.latitude || editForm.errors.longitude) && (
+                                <p className="text-xs text-destructive col-span-1 md:col-span-2">الإحداثيات حقول إجبارية.</p>
+                            )}
                         </div>
 
                         <Separator />
 
                         {/* Checkboxes */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-right">
-                            {[
-                                { id: 'edit_main', label: 'شارع رئيسي', key: 'is_main_street' as const },
-                                { id: 'edit_side', label: 'شارع فرعي', key: 'is_side_street' as const },
-                                { id: 'edit_complex', label: 'مجمع سكني', key: 'inside_residential_complex' as const },
-                                { id: 'edit_area', label: 'حي سكني', key: 'inside_residential_area' as const },
-                            ].map(({ id, label, key }) => (
-                                <div key={id} className="flex items-center gap-2">
-                                    <Checkbox
-                                        id={id}
-                                        checked={editForm.data[key] as boolean}
-                                        onCheckedChange={checked => editForm.setData(key, !!checked)}
-                                    />
-                                    <Label htmlFor={id} className="text-xs font-semibold cursor-pointer">{label}</Label>
-                                </div>
-                            ))}
+                        <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold block">خصائص موقع المحل (اختر واحد على الأقل) *</Label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-right">
+                                {[
+                                    { id: 'edit_main', label: 'شارع رئيسي', key: 'is_main_street' as const },
+                                    { id: 'edit_side', label: 'شارع فرعي', key: 'is_side_street' as const },
+                                    { id: 'edit_complex', label: 'مجمع سكني', key: 'inside_residential_complex' as const },
+                                    { id: 'edit_area', label: 'حي سكني', key: 'inside_residential_area' as const },
+                                ].map(({ id, label, key }) => (
+                                    <div key={id} className="flex items-center gap-2">
+                                        <Checkbox
+                                            id={id}
+                                            checked={editForm.data[key] as boolean}
+                                            onCheckedChange={checked => editForm.setData(key, !!checked)}
+                                        />
+                                        <Label htmlFor={id} className="text-xs font-semibold cursor-pointer">{label}</Label>
+                                    </div>
+                                ))}
+                            </div>
+                            {(editForm.errors as any).street_types && <p className="text-xs text-destructive">{(editForm.errors as any).street_types}</p>}
                         </div>
 
                         <Separator />
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-right">
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold">حالة التعامل</Label>
+                                <Label className="text-xs font-semibold">حالة التعامل *</Label>
                                 <Select value={editForm.data.status} onValueChange={v => editForm.setData('status', v as any)}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
@@ -538,9 +595,10 @@ export default function Show({ customer }: Props) {
                                         <SelectItem value="inactive">غير متعامل</SelectItem>
                                     </SelectContent>
                                 </Select>
+                                {editForm.errors.status && <p className="text-xs text-destructive">{editForm.errors.status}</p>}
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold">التصنيف</Label>
+                                <Label className="text-xs font-semibold">التصنيف *</Label>
                                 <Select value={editForm.data.classification} onValueChange={v => editForm.setData('classification', v as any)}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
@@ -549,9 +607,10 @@ export default function Show({ customer }: Props) {
                                         <SelectItem value="C">Class C</SelectItem>
                                     </SelectContent>
                                 </Select>
+                                {editForm.errors.classification && <p className="text-xs text-destructive">{editForm.errors.classification}</p>}
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold">المساحة التقديرية</Label>
+                                <Label className="text-xs font-semibold">المساحة التقديرية *</Label>
                                 <Select value={editForm.data.estimated_area} onValueChange={v => editForm.setData('estimated_area', v)}>
                                     <SelectTrigger><SelectValue placeholder="اختر المساحة" /></SelectTrigger>
                                     <SelectContent>
@@ -560,22 +619,66 @@ export default function Show({ customer }: Props) {
                                         <SelectItem value="80_plus">من 80 متر فأكثر</SelectItem>
                                     </SelectContent>
                                 </Select>
+                                {editForm.errors.estimated_area && <p className="text-xs text-destructive">{editForm.errors.estimated_area}</p>}
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold">نوع اللافتة</Label>
-                                <Input value={editForm.data.sign_type} onChange={e => editForm.setData('sign_type', e.target.value)} />
+                                <Label className="text-xs font-semibold">نوع اللافتة *</Label>
+                                <Input value={editForm.data.sign_type} onChange={e => editForm.setData('sign_type', e.target.value)} required />
+                                {editForm.errors.sign_type && <p className="text-xs text-destructive">{editForm.errors.sign_type}</p>}
                             </div>
-                            <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold">كود الأمانة</Label>
-                                <Input value={editForm.data.trust_code} onChange={e => editForm.setData('trust_code', e.target.value)} dir="ltr" />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold">الأمانات (مفصولة بفاصلة)</Label>
-                                <Input
-                                    value={editForm.data.trust_items}
-                                    onChange={e => editForm.setData('trust_items', e.target.value)}
-                                    placeholder="براد، شاشة، ..."
-                                />
+
+                            {/* Dynamic Trust Items List on Edit */}
+                            <div className="space-y-3 col-span-1 md:col-span-2 text-right">
+                                <Label className="text-xs font-semibold block mb-1">الأمانات المستلمة وترميزها (اختر واحدة على الأقل وسجل كودها) *</Label>
+                                <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto p-1 border border-border rounded-md">
+                                    {trust_types.map((type) => {
+                                        const isChecked = editForm.data.trust_items.some(item => item.name === type.name);
+                                        const selectedItem = editForm.data.trust_items.find(item => item.name === type.name);
+
+                                        return (
+                                            <div key={type.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 border border-border rounded bg-muted/10">
+                                                <div className="flex items-center gap-2">
+                                                    <Checkbox
+                                                        id={`item_edit_${type.id}`}
+                                                        checked={isChecked}
+                                                        onCheckedChange={(checked) => {
+                                                            let newItems = [...editForm.data.trust_items];
+                                                            if (checked) {
+                                                                newItems.push({ name: type.name, code: '' });
+                                                            } else {
+                                                                newItems = newItems.filter(item => item.name !== type.name);
+                                                            }
+                                                            editForm.setData('trust_items', newItems);
+                                                        }}
+                                                    />
+                                                    <Label htmlFor={`item_edit_${type.id}`} className="text-xs font-semibold cursor-pointer">{type.name}</Label>
+                                                </div>
+                                                {isChecked && (
+                                                    <div className="w-full sm:w-48">
+                                                        <Input
+                                                            placeholder="كود الأمانة..."
+                                                            value={selectedItem?.code || ''}
+                                                            onChange={(e) => {
+                                                                const newItems = editForm.data.trust_items.map(item => {
+                                                                    if (item.name === type.name) {
+                                                                        return { ...item, code: e.target.value };
+                                                                    }
+                                                                    return item;
+                                                                });
+                                                                editForm.setData('trust_items', newItems);
+                                                            }}
+                                                            className="h-8 text-xs font-mono"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                {editForm.errors.trust_items && <p className="text-xs text-destructive">{editForm.errors.trust_items}</p>}
+                                {Object.keys(editForm.errors).some(k => k.startsWith('trust_items.')) && (
+                                    <p className="text-xs text-destructive">يعبأ الكود إجبارياً لكل أمانة يتم تحديدها.</p>
+                                )}
                             </div>
                         </div>
 
@@ -601,6 +704,7 @@ export default function Show({ customer }: Props) {
                                 )}
                             </div>
                             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                            {editForm.errors.refrigerator_photo && <p className="text-xs text-destructive">{editForm.errors.refrigerator_photo}</p>}
                         </div>
 
                         <DialogFooter className="flex gap-2 pt-2" dir="rtl">

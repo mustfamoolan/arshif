@@ -31,6 +31,7 @@ class Customer extends Model
         'status',
         'classification',
         'created_by',
+        'district',
     ];
 
     protected $casts = [

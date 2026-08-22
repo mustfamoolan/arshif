@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\TrustTypeController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -25,6 +26,7 @@ Route::middleware(['auth'])->group(function () {
 // Protected Admin Routes for User Management & Auditing
 Route::middleware(['auth', 'admin'])->group(function () {
     Route::resource('users', UserController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::resource('trust-types', TrustTypeController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::get('/activity-logs', [App\Http\Controllers\ActivityLogController::class, 'index'])->name('activity-logs.index');
 });
 
