@@ -27,6 +27,7 @@ import {
     UploadCloud,
     Image as ImageIcon,
     Tag,
+    Download,
 } from 'lucide-react';
 
 interface TrustItem {
@@ -106,6 +107,17 @@ export default function Index({ customers, filters, trust_types, districtsList }
     const [classificationFilter, setClassificationFilter] = useState(filters.classification || 'all');
     const [districtFilter, setDistrictFilter] = useState(filters.district || 'all');
     const [perPage, setPerPage] = useState(filters.per_page || '10');
+
+    // Export to Excel with active filters
+    const handleExportExcel = () => {
+        const params = new URLSearchParams();
+        if (searchTerm) params.append('search', searchTerm);
+        if (statusFilter !== 'all') params.append('status', statusFilter);
+        if (classificationFilter !== 'all') params.append('classification', classificationFilter);
+        if (districtFilter !== 'all') params.append('district', districtFilter);
+
+        window.location.href = route('customers.export') + '?' + params.toString();
+    };
 
     // Real-time automatic polling: Auto-refresh list every 5 seconds silently
     useEffect(() => {
@@ -342,7 +354,17 @@ export default function Index({ customers, filters, trust_types, districtsList }
                         </p>
                     </div>
 
-                    <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            onClick={handleExportExcel}
+                            variant="outline"
+                            className="gap-2 text-xs font-bold h-9 border-green-600/30 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20 dark:border-green-500/20 dark:text-green-500"
+                        >
+                            <Download className="h-4 w-4" />
+                            تصدير إكسل
+                        </Button>
+
+                        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                         <DialogTrigger asChild>
                             <Button className="gap-2 text-xs font-bold h-9">
                                 <UserPlus className="h-4 w-4" />
@@ -738,6 +760,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
                             </form>
                         </DialogContent>
                     </Dialog>
+                    </div>
                 </div>
 
                 {/* Filters card */}

@@ -30,6 +30,128 @@ class CustomerController extends Controller
     ];
 
     /**
+     * Export customers to Excel (CSV with UTF-8 BOM).
+     */
+    public function exportExcel(Request $request)
+    {
+        $query = Customer::with('creator');
+
+        // Filtering by search term (full_name, commercial_name, phone, area)
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('full_name', 'like', "%{$search}%")
+                  ->orWhere('commercial_name', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%")
+                  ->orWhere('customer_area', 'like', "%{$search}%");
+            });
+        }
+
+        // Filtering by status
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        // Filtering by classification
+        if ($request->filled('classification')) {
+            $query->where('classification', $request->input('classification'));
+        }
+
+        // Filtering by district
+        if ($request->filled('district')) {
+            $query->where('district', $request->input('district'));
+        }
+
+        $customers = $query->orderBy('created_at', 'desc')->get();
+
+        // Generate CSV response
+        $filename = "customers_" . date('Y-m-d_H-i') . ".csv";
+        
+        $headers = [
+            "Content-type" => "text/csv; charset=UTF-8",
+            "Content-Disposition" => "attachment; filename={$filename}",
+            "Pragma" => "no-cache",
+            "Cache-Control" => "must-revalidate, post-check=0, pre-check=0",
+            "Expires" => "0"
+        ];
+
+        $callback = function() use($customers) {
+            $file = fopen('php://output', 'w');
+            
+            // Add UTF-8 BOM for Arabic support in Excel
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+            
+            // CSV Headers
+            fputcsv($file, [
+                'الاسم التجاري',
+                'الاسم الثلاثي',
+                'رقم الهاتف',
+                'القضاء',
+                'المنطقة',
+                'أقرب نقطة دالة',
+                'العنوان بالتفصيل',
+                'المساحة التقديرية',
+                'نوع اللافتة',
+                'التصنيف',
+                'الحالة',
+                'الأمانات وأكوادها',
+                'إحداثيات الموقع (خط العرض، خط الطول)',
+                'الموظف المسجل',
+                'تاريخ التسجيل'
+            ]);
+
+            foreach ($customers as $c) {
+                // Formatting estimated area
+                $estArea = '';
+                if ($c->estimated_area === '10_30') $estArea = 'من 10 إلى 30 متر';
+                elseif ($c->estimated_area === '30_80') $estArea = 'من 30 إلى 80 متر';
+                elseif ($c->estimated_area === '80_plus') $estArea = 'من 80 متر فأكثر';
+
+                // Formatting status
+                $statusText = $c->status === 'active' ? 'متعامل' : 'غير متعامل';
+
+                // Formatting trust items
+                $trusts = [];
+                if ($c->trust_items) {
+                    foreach ($c->trust_items as $item) {
+                        // Support both object and array format
+                        $name = is_array($item) ? ($item['name'] ?? '') : ($item->name ?? '');
+                        $code = is_array($item) ? ($item['code'] ?? '') : ($item->code ?? '');
+                        $codeStr = !empty($code) ? " ({$code})" : "";
+                        $trusts[] = $name . $codeStr;
+                    }
+                }
+                $trustsText = implode(' | ', $trusts);
+
+                // Coordinates
+                $coords = ($c->latitude && $c->longitude) ? "{$c->latitude}, {$c->longitude}" : '';
+
+                fputcsv($file, [
+                    $c->commercial_name,
+                    $c->full_name,
+                    $c->phone,
+                    $c->district,
+                    $c->customer_area,
+                    $c->nearest_landmark,
+                    $c->location_address,
+                    $estArea,
+                    $c->sign_type,
+                    'Class ' . $c->classification,
+                    $statusText,
+                    $trustsText,
+                    $coords,
+                    $c->creator ? $c->creator->name : 'مجهول',
+                    $c->created_at->format('Y-m-d H:i')
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index(Request $request): Response
