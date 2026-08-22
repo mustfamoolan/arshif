@@ -63,6 +63,7 @@ class CustomerController extends Controller
         }
 
         $customers = $query->orderBy('created_at', 'desc')->get();
+        $trustTypes = TrustType::orderBy('name')->get();
 
         // Generate CSV response
         $filename = "customers_" . date('Y-m-d_H-i') . ".csv";
@@ -75,14 +76,14 @@ class CustomerController extends Controller
             "Expires" => "0"
         ];
 
-        $callback = function() use($customers) {
+        $callback = function() use($customers, $trustTypes) {
             $file = fopen('php://output', 'w');
             
             // Add UTF-8 BOM for Arabic support in Excel
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
             
-            // CSV Headers
-            fputcsv($file, [
+            // Build CSV Headers Row
+            $headersRow = [
                 'الاسم التجاري',
                 'الاسم الثلاثي',
                 'رقم الهاتف',
@@ -94,11 +95,18 @@ class CustomerController extends Controller
                 'نوع اللافتة',
                 'التصنيف',
                 'الحالة',
-                'الأمانات وأكوادها',
-                'إحداثيات الموقع (خط العرض، خط الطول)',
-                'الموظف المسجل',
-                'تاريخ التسجيل'
-            ]);
+            ];
+
+            // Add dynamic column for each trust type
+            foreach ($trustTypes as $type) {
+                $headersRow[] = 'أمانة: ' . $type->name;
+            }
+
+            $headersRow[] = 'إحداثيات الموقع (خط العرض، خط الطول)';
+            $headersRow[] = 'الموظف المسجل';
+            $headersRow[] = 'تاريخ التسجيل';
+
+            fputcsv($file, $headersRow);
 
             foreach ($customers as $c) {
                 // Formatting estimated area
@@ -110,26 +118,19 @@ class CustomerController extends Controller
                 // Formatting status
                 $statusText = $c->status === 'active' ? 'متعامل' : 'غير متعامل';
 
-                // Formatting trust items
-                $trusts = [];
-                if ($c->trust_items) {
-                    foreach ($c->trust_items as $item) {
-                        // Support both object and array format
-                        $name = is_array($item) ? ($item['name'] ?? '') : ($item->name ?? '');
-                        $code = is_array($item) ? ($item['code'] ?? '') : ($item->code ?? '');
-                        $codeStr = !empty($code) ? " ({$code})" : "";
-                        $trusts[] = $name . $codeStr;
-                    }
+                // Format phone number to preserve leading zero in Excel
+                $phoneFormatted = '';
+                if (!empty($c->phone)) {
+                    $phoneFormatted = '="' . $c->phone . '"';
                 }
-                $trustsText = implode(' | ', $trusts);
 
-                // Coordinates
-                $coords = ($c->latitude && $c->longitude) ? "{$c->latitude}, {$c->longitude}" : '';
+                // Format date as text formula to prevent Excel formatting corruption
+                $dateFormatted = '="' . $c->created_at->format('Y-m-d H:i') . '"';
 
-                fputcsv($file, [
+                $row = [
                     $c->commercial_name,
                     $c->full_name,
-                    $c->phone,
+                    $phoneFormatted,
                     $c->district,
                     $c->customer_area,
                     $c->nearest_landmark,
@@ -138,11 +139,36 @@ class CustomerController extends Controller
                     $c->sign_type,
                     'Class ' . $c->classification,
                     $statusText,
-                    $trustsText,
-                    $coords,
-                    $c->creator ? $c->creator->name : 'مجهول',
-                    $c->created_at->format('Y-m-d H:i')
-                ]);
+                ];
+
+                // Map customer trust items
+                $trustItemsMap = [];
+                if ($c->trust_items) {
+                    foreach ($c->trust_items as $item) {
+                        $name = is_array($item) ? ($item['name'] ?? '') : ($item->name ?? '');
+                        $code = is_array($item) ? ($item['code'] ?? '') : ($item->code ?? '');
+                        $trustItemsMap[$name] = $code;
+                    }
+                }
+
+                // Add code for each trust type column
+                foreach ($trustTypes as $type) {
+                    if (isset($trustItemsMap[$type->name])) {
+                        $codeVal = $trustItemsMap[$type->name];
+                        $row[] = !empty($codeVal) ? '="' . $codeVal . '"' : '-';
+                    } else {
+                        $row[] = ''; // Empty if customer doesn't have this item
+                    }
+                }
+
+                // Coordinates
+                $coords = ($c->latitude && $c->longitude) ? "{$c->latitude}, {$c->longitude}" : '';
+                $row[] = $coords;
+                
+                $row[] = $c->creator ? $c->creator->name : 'مجهول';
+                $row[] = $dateFormatted;
+
+                fputcsv($file, $row);
             }
 
             fclose($file);
