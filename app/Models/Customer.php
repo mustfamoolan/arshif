@@ -51,4 +51,33 @@ class Customer extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+    /**
+     * Accessor for refrigerator_photo: always returns an array.
+     */
+    public function getRefrigeratorPhotoAttribute($value)
+    {
+        if (empty($value)) {
+            return [];
+        }
+        
+        $decoded = json_decode($value, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            return $decoded;
+        }
+        
+        return [$value];
+    }
+
+    /**
+     * Mutator for refrigerator_photo: serializes arrays to JSON.
+     */
+    public function setRefrigeratorPhotoAttribute($value)
+    {
+        if (is_array($value)) {
+            $this->attributes['refrigerator_photo'] = json_encode($value);
+        } else {
+            $this->attributes['refrigerator_photo'] = $value;
+        }
+    }
 }

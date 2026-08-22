@@ -105,7 +105,8 @@ class CustomerController extends Controller
             'trust_items.*.code' => 'required|string|max:255',
             'sign_type' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
-            'refrigerator_photo' => 'required|image|max:4096', // Max 4MB, required for store
+            'refrigerator_photo' => 'required|array|min:1', // Required array of photos
+            'refrigerator_photo.*' => 'image|max:4096',     // Max 4MB per photo
             'status' => 'required|string|in:active,inactive',
             'classification' => 'required|string|in:A,B,C',
         ], [
@@ -124,9 +125,10 @@ class CustomerController extends Controller
             'trust_items.*.code.required' => 'حقل كود الأمانة مطلوب لكل أمانة محددة.',
             'sign_type.required' => 'حقل نوع اللافتة مطلوب.',
             'phone.required' => 'حقل رقم هاتف العميل مطلوب.',
-            'refrigerator_photo.required' => 'يجب رفع صورة لبراد العميل لتسجيله.',
-            'refrigerator_photo.image' => 'الملف المرفوع يجب أن يكون صورة.',
-            'refrigerator_photo.max' => 'حجم الصورة يجب ألا يتجاوز 4 ميجابايت.',
+            'refrigerator_photo.required' => 'يجب رفع صورة واحدة على الأقل لبراد العميل لتسجيله.',
+            'refrigerator_photo.array' => 'صورة البراد يجب أن تكون مصفوفة.',
+            'refrigerator_photo.*.image' => 'كل ملف مرفوع يجب أن يكون صورة.',
+            'refrigerator_photo.*.max' => 'حجم كل صورة يجب ألا يتجاوز 4 ميجابايت.',
         ]);
 
         // التحقق من تحديد خيار واحد على الأقل لخصائص موقع المحل
@@ -146,8 +148,12 @@ class CustomerController extends Controller
         $validated['inside_residential_area'] = $request->boolean('inside_residential_area');
 
         if ($request->hasFile('refrigerator_photo')) {
-            $path = $request->file('refrigerator_photo')->store('refrigerators', 'public');
-            $validated['refrigerator_photo'] = '/storage/' . $path;
+            $photos = [];
+            foreach ($request->file('refrigerator_photo') as $file) {
+                $path = $file->store('refrigerators', 'public');
+                $photos[] = '/storage/' . $path;
+            }
+            $validated['refrigerator_photo'] = $photos;
         }
 
         Customer::create($validated);
@@ -193,7 +199,8 @@ class CustomerController extends Controller
             'trust_items.*.code' => 'required|string|max:255',
             'sign_type' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
-            'refrigerator_photo' => 'nullable|image|max:4096', // Nullable on update
+            'refrigerator_photo' => 'nullable|array', // Nullable array on update
+            'refrigerator_photo.*' => 'image|max:4096',
             'status' => 'required|string|in:active,inactive',
             'classification' => 'required|string|in:A,B,C',
         ], [
@@ -212,8 +219,9 @@ class CustomerController extends Controller
             'trust_items.*.code.required' => 'حقل كود الأمانة مطلوب لكل أمانة محددة.',
             'sign_type.required' => 'حقل نوع اللافتة مطلوب.',
             'phone.required' => 'حقل رقم هاتف العميل مطلوب.',
-            'refrigerator_photo.image' => 'الملف المرفوع يجب أن يكون صورة.',
-            'refrigerator_photo.max' => 'حجم الصورة يجب ألا يتجاوز 4 ميجابايت.',
+            'refrigerator_photo.array' => 'صورة البراد يجب أن تكون مصفوفة.',
+            'refrigerator_photo.*.image' => 'كل ملف مرفوع يجب أن يكون صورة.',
+            'refrigerator_photo.*.max' => 'حجم كل صورة يجب ألا يتجاوز 4 ميجابايت.',
         ]);
 
         // التحقق من تحديد خيار واحد على الأقل لخصائص موقع المحل
@@ -232,13 +240,19 @@ class CustomerController extends Controller
         $validated['inside_residential_area'] = $request->boolean('inside_residential_area');
 
         if ($request->hasFile('refrigerator_photo')) {
-            // Delete old photo if exists
-            if ($customer->refrigerator_photo) {
-                $oldPath = str_replace('/storage/', '', $customer->refrigerator_photo);
-                Storage::disk('public')->delete($oldPath);
+            // Delete old photos if exist
+            if (!empty($customer->refrigerator_photo)) {
+                foreach ($customer->refrigerator_photo as $photo) {
+                    $oldPath = str_replace('/storage/', '', $photo);
+                    Storage::disk('public')->delete($oldPath);
+                }
             }
-            $path = $request->file('refrigerator_photo')->store('refrigerators', 'public');
-            $validated['refrigerator_photo'] = '/storage/' . $path;
+            $photos = [];
+            foreach ($request->file('refrigerator_photo') as $file) {
+                $path = $file->store('refrigerators', 'public');
+                $photos[] = '/storage/' . $path;
+            }
+            $validated['refrigerator_photo'] = $photos;
         }
 
         $customer->update($validated);
@@ -251,9 +265,11 @@ class CustomerController extends Controller
      */
     public function destroy(Customer $customer)
     {
-        if ($customer->refrigerator_photo) {
-            $oldPath = str_replace('/storage/', '', $customer->refrigerator_photo);
-            Storage::disk('public')->delete($oldPath);
+        if (!empty($customer->refrigerator_photo)) {
+            foreach ($customer->refrigerator_photo as $photo) {
+                $oldPath = str_replace('/storage/', '', $photo);
+                Storage::disk('public')->delete($oldPath);
+            }
         }
 
         $customer->delete();

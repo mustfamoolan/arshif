@@ -62,7 +62,7 @@ interface Customer {
     trust_items: TrustItem[] | null;
     sign_type: string | null;
     phone: string | null;
-    refrigerator_photo: string | null;
+    refrigerator_photo: string[] | null;
     status: 'active' | 'inactive';
     classification: 'A' | 'B' | 'C';
     created_at: string;
@@ -106,9 +106,12 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
         return () => clearTimeout(timer);
     }, [customer]);
 
+    // active index for image slider
+    const [activeImageIndex, setActiveImageIndex] = useState(0);
+
     // ─── Edit Dialog ───────────────────────────────────────────
     const [editOpen, setEditOpen] = useState(false);
-    const [photoPreview, setPhotoPreview] = useState<string | null>(customer.refrigerator_photo);
+    const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
     const fileRef = useRef<HTMLInputElement>(null);
 
     const editForm = useForm({
@@ -131,7 +134,7 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
         trust_items: customer.trust_items || [] as TrustItem[],
         status: customer.status,
         classification: customer.classification,
-        refrigerator_photo: null as File | null,
+        refrigerator_photo: null as File[] | null,
     });
 
     const handleEditSubmit = (e: React.FormEvent) => {
@@ -173,22 +176,41 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
         formData.append('status', editForm.data.status);
         formData.append('classification', editForm.data.classification);
         if (editForm.data.refrigerator_photo) {
-            formData.append('refrigerator_photo', editForm.data.refrigerator_photo);
+            editForm.data.refrigerator_photo.forEach((file) => {
+                formData.append('refrigerator_photo[]', file);
+            });
         }
 
         router.post(route('customers.update', customer.id), formData, {
-            onSuccess: () => setEditOpen(false),
+            onSuccess: () => {
+                setEditOpen(false);
+                setPhotoPreviews([]);
+                setActiveImageIndex(0); // Reset index on success
+            },
         });
     };
 
     const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0] || null;
-        editForm.setData('refrigerator_photo', file);
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (ev) => setPhotoPreview(ev.target?.result as string);
-            reader.readAsDataURL(file);
+        const files = e.target.files ? Array.from(e.target.files) : [];
+        editForm.setData('refrigerator_photo', files);
+        
+        const previews: string[] = [];
+        let loadedCount = 0;
+        if (files.length === 0) {
+            setPhotoPreviews([]);
+            return;
         }
+        files.forEach((file) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                previews.push(ev.target?.result as string);
+                loadedCount++;
+                if (loadedCount === files.length) {
+                    setPhotoPreviews(previews);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
     };
 
     // ─── Delete Dialog ─────────────────────────────────────────
@@ -204,10 +226,11 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
 
     // ─── Download image ────────────────────────────────────────
     const handleDownloadImage = () => {
-        if (!customer.refrigerator_photo) return;
+        const activePhoto = customer.refrigerator_photo?.[activeImageIndex];
+        if (!activePhoto) return;
         const link = document.createElement('a');
-        link.href = customer.refrigerator_photo;
-        link.download = `براد-${customer.commercial_name}.jpg`;
+        link.href = activePhoto;
+        link.download = `براد-${customer.commercial_name}-${activeImageIndex + 1}.jpg`;
         link.target = '_blank';
         document.body.appendChild(link);
         link.click();
@@ -429,9 +452,9 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
                                 <div className="flex items-center justify-between">
                                     <CardTitle className="text-sm font-bold text-muted-foreground flex items-center gap-2">
                                         <FileText className="size-4 text-primary" />
-                                        صورة البراد
+                                        صور براد العميل ({customer.refrigerator_photo ? customer.refrigerator_photo.length : 0})
                                     </CardTitle>
-                                    {customer.refrigerator_photo && (
+                                    {customer.refrigerator_photo && customer.refrigerator_photo.length > 0 && (
                                         <Button
                                             variant="ghost"
                                             size="sm"
@@ -439,20 +462,64 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
                                             onClick={handleDownloadImage}
                                         >
                                             <Download className="size-3.5" />
-                                            تحميل
+                                            تحميل الصورة النشطة
                                         </Button>
                                     )}
                                 </div>
                             </CardHeader>
                             <CardContent className="pt-2">
-                                {customer.refrigerator_photo ? (
-                                    <div className="border border-border rounded-lg overflow-hidden shadow-sm bg-muted/20">
-                                        <img
-                                            src={customer.refrigerator_photo}
-                                            alt="صورة براد العميل"
-                                            className="w-full h-auto object-cover max-h-56 hover:scale-105 transition-transform duration-300 cursor-zoom-in"
-                                            onClick={() => window.open(customer.refrigerator_photo!, '_blank')}
-                                        />
+                                {customer.refrigerator_photo && customer.refrigerator_photo.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {/* Slider Window */}
+                                        <div className="relative border border-border rounded-lg overflow-hidden shadow-sm bg-muted/20 aspect-video flex items-center justify-center group">
+                                            <img
+                                                src={customer.refrigerator_photo[activeImageIndex]}
+                                                alt={`صورة براد العميل ${activeImageIndex + 1}`}
+                                                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300 cursor-zoom-in"
+                                                onClick={() => window.open(customer.refrigerator_photo![activeImageIndex], '_blank')}
+                                            />
+                                            
+                                            {/* Slider Navigation Arrows */}
+                                            {customer.refrigerator_photo.length > 1 && (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 size-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors opacity-0 group-hover:opacity-100"
+                                                        onClick={() => setActiveImageIndex((prev) => (prev === 0 ? customer.refrigerator_photo!.length - 1 : prev - 1))}
+                                                    >
+                                                        &#10094;
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="absolute left-2 top-1/2 -translate-y-1/2 size-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors opacity-0 group-hover:opacity-100"
+                                                        onClick={() => setActiveImageIndex((prev) => (prev === customer.refrigerator_photo!.length - 1 ? 0 : prev + 1))}
+                                                    >
+                                                        &#10095;
+                                                    </button>
+                                                </>
+                                            )}
+
+                                            {/* Image Index Indicator Counter */}
+                                            <Badge className="absolute bottom-2 right-2 bg-black/70 text-white font-bold select-none text-[10px]" variant="secondary">
+                                                {activeImageIndex + 1} / {customer.refrigerator_photo.length}
+                                            </Badge>
+                                        </div>
+
+                                        {/* Dots/Thumbnails indicator */}
+                                        {customer.refrigerator_photo.length > 1 && (
+                                            <div className="flex justify-center gap-1.5 overflow-x-auto py-1">
+                                                {customer.refrigerator_photo.map((photo, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        className={`size-10 rounded border overflow-hidden transition-all shrink-0 ${activeImageIndex === idx ? 'ring-2 ring-primary border-transparent' : 'opacity-60 hover:opacity-100 border-border'}`}
+                                                        onClick={() => setActiveImageIndex(idx)}
+                                                    >
+                                                        <img src={photo} className="size-full object-cover" />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 ) : (
                                     <div className="text-muted-foreground text-xs py-10 border border-dashed border-border rounded-lg text-center">
@@ -685,25 +752,42 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
                         <Separator />
 
                         {/* Photo Upload */}
-                        <div className="space-y-2">
-                            <Label className="text-xs font-semibold">صورة البراد</Label>
+                        <div className="space-y-2 text-right">
+                            <Label className="text-xs font-semibold">صور براد العميل (تحديث اختياري - اختيار صور جديدة سيحذف الصور القديمة)</Label>
+                            
+                            {/* Existing photos preview */}
+                            {customer.refrigerator_photo && customer.refrigerator_photo.length > 0 && (
+                                <div className="space-y-1 py-1">
+                                    <span className="text-[11px] text-muted-foreground block font-bold">الصور الحالية ({customer.refrigerator_photo.length} صور):</span>
+                                    <div className="flex flex-wrap gap-1">
+                                        {customer.refrigerator_photo.map((photo, idx) => (
+                                            <img key={idx} src={photo} className="size-10 object-cover rounded border" />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             <div
                                 className="border-2 border-dashed border-border rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
                                 onClick={() => fileRef.current?.click()}
                             >
-                                {photoPreview ? (
+                                {photoPreviews.length > 0 ? (
                                     <div className="space-y-2">
-                                        <img src={photoPreview} alt="معاينة الصورة" className="max-h-36 mx-auto rounded-md object-cover" />
-                                        <p className="text-xs text-muted-foreground">اضغط لتغيير الصورة</p>
+                                        <div className="flex flex-wrap gap-1.5 justify-center">
+                                            {photoPreviews.map((preview, idx) => (
+                                                <img key={idx} src={preview} className="size-12 object-cover rounded border" />
+                                            ))}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground font-semibold">تم اختيار {photoPreviews.length} صور بديلة</p>
                                     </div>
                                 ) : (
                                     <div className="py-4 space-y-2">
                                         <ImagePlus className="size-8 mx-auto text-muted-foreground" />
-                                        <p className="text-xs text-muted-foreground">اضغط لرفع صورة البراد</p>
+                                        <p className="text-xs text-muted-foreground">اضغط لرفع صور البراد الجديدة (يمكنك اختيار صور متعددة)</p>
                                     </div>
                                 )}
                             </div>
-                            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoChange} />
                             {editForm.errors.refrigerator_photo && <p className="text-xs text-destructive">{editForm.errors.refrigerator_photo}</p>}
                         </div>
 

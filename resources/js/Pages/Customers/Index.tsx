@@ -52,7 +52,7 @@ interface Customer {
     trust_items: TrustItem[] | null;
     sign_type: string | null;
     phone: string | null;
-    refrigerator_photo: string | null;
+    refrigerator_photo: string[] | null;
     status: 'active' | 'inactive';
     classification: 'A' | 'B' | 'C';
     created_at: string;
@@ -220,7 +220,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
         trust_items: [] as TrustItem[],
         sign_type: '',
         phone: '',
-        refrigerator_photo: null as File | null,
+        refrigerator_photo: [] as File[],
         status: 'active' as 'active' | 'inactive',
         classification: 'C' as 'A' | 'B' | 'C',
     });
@@ -242,7 +242,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
         trust_items: [] as TrustItem[],
         sign_type: '',
         phone: '',
-        refrigerator_photo: null as File | null,
+        refrigerator_photo: null as File[] | null,
         status: 'active' as 'active' | 'inactive',
         classification: 'C' as 'A' | 'B' | 'C',
         _method: 'PUT', // For multipart file updates in Laravel
@@ -679,14 +679,18 @@ export default function Index({ customers, filters, trust_types, districtsList }
 
                                     {/* File upload */}
                                     <div className="space-y-1.5 col-span-1 md:col-span-2">
-                                        <Label className="text-xs font-semibold block">صورة لبراد العميل *</Label>
-                                        <div className="flex items-center gap-3 mt-1.5">
+                                        <Label className="text-xs font-semibold block">صور براد العميل (يمكن رفع أكثر من صورة معاً) *</Label>
+                                        <div className="flex flex-col gap-3 mt-1.5">
                                             <Input
                                                 type="file"
                                                 accept="image/*"
+                                                multiple
                                                 className="hidden"
                                                 id="photo-upload-add"
-                                                onChange={(e) => addForm.setData('refrigerator_photo', e.target.files ? e.target.files[0] : null)}
+                                                onChange={(e) => {
+                                                    const files = e.target.files ? Array.from(e.target.files) : [];
+                                                    addForm.setData('refrigerator_photo', files);
+                                                }}
                                             />
                                             <Label
                                                 htmlFor="photo-upload-add"
@@ -694,10 +698,22 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                             >
                                                 <UploadCloud className="h-6 w-6 text-muted-foreground" />
                                                 <span className="text-xs font-semibold text-foreground">
-                                                    {addForm.data.refrigerator_photo ? addForm.data.refrigerator_photo.name : 'اضغط لرفع صورة البراد'}
+                                                    {addForm.data.refrigerator_photo && addForm.data.refrigerator_photo.length > 0 
+                                                        ? `تم اختيار ${addForm.data.refrigerator_photo.length} صور` 
+                                                        : 'اضغط لرفع صور البراد'}
                                                 </span>
-                                                <span className="text-[10px] text-muted-foreground">صيغ الصور فقط (JPG, PNG) بحد أقصى 4 ميجابايت</span>
+                                                <span className="text-[10px] text-muted-foreground">يمكنك اختيار ملفات متعددة (JPG, PNG) بحد أقصى 4 ميجابايت لكل صورة</span>
                                             </Label>
+                                            
+                                            {addForm.data.refrigerator_photo && addForm.data.refrigerator_photo.length > 0 && (
+                                                <div className="flex flex-wrap gap-2 justify-center border border-border p-2 rounded bg-muted/20">
+                                                    {addForm.data.refrigerator_photo.map((file, idx) => (
+                                                        <div key={idx} className="relative group size-16 border rounded overflow-hidden">
+                                                            <img src={URL.createObjectURL(file)} className="size-full object-cover" />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                         {addForm.errors.refrigerator_photo && <p className="text-xs text-destructive">{addForm.errors.refrigerator_photo}</p>}
                                     </div>
@@ -1400,20 +1416,28 @@ export default function Index({ customers, filters, trust_types, districtsList }
 
                                     {/* File upload */}
                                     <div className="space-y-1.5 col-span-1 md:col-span-2">
-                                        <Label className="text-xs font-semibold block">صورة لبراد العميل (تحديث اختياري)</Label>
-                                        {editingCustomer.refrigerator_photo && (
-                                            <div className="flex items-center gap-2 py-1">
-                                                <ImageIcon className="size-4 text-muted-foreground" />
-                                                <span className="text-xs text-muted-foreground">صورة مسجلة بالفعل</span>
+                                        <Label className="text-xs font-semibold block">صور براد العميل (تحديث اختياري - اختيار صور جديدة سيحذف الصور القديمة)</Label>
+                                        {editingCustomer.refrigerator_photo && editingCustomer.refrigerator_photo.length > 0 && (
+                                            <div className="space-y-1.5 py-1">
+                                                <span className="text-xs text-muted-foreground block mb-1">الصور المسجلة بالفعل ({editingCustomer.refrigerator_photo.length} صور):</span>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {editingCustomer.refrigerator_photo.map((photo, idx) => (
+                                                        <img key={idx} src={photo} className="size-10 object-cover rounded border" />
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
-                                        <div className="flex items-center gap-3 mt-1.5">
+                                        <div className="flex flex-col gap-3 mt-1.5">
                                             <Input
                                                 type="file"
                                                 accept="image/*"
+                                                multiple
                                                 className="hidden"
                                                 id="photo-upload-edit"
-                                                onChange={(e) => editForm.setData('refrigerator_photo', e.target.files ? e.target.files[0] : null)}
+                                                onChange={(e) => {
+                                                    const files = e.target.files ? Array.from(e.target.files) : [];
+                                                    editForm.setData('refrigerator_photo', files);
+                                                }}
                                             />
                                             <Label
                                                 htmlFor="photo-upload-edit"
@@ -1421,9 +1445,21 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                             >
                                                 <UploadCloud className="h-6 w-6 text-muted-foreground" />
                                                 <span className="text-xs font-semibold text-foreground">
-                                                    {editForm.data.refrigerator_photo ? editForm.data.refrigerator_photo.name : 'اضغط لاختيار صورة بديلة'}
+                                                    {editForm.data.refrigerator_photo && editForm.data.refrigerator_photo.length > 0 
+                                                        ? `تم اختيار ${editForm.data.refrigerator_photo.length} صور بديلة` 
+                                                        : 'اضغط لاختيار صور بديلة'}
                                                 </span>
                                             </Label>
+
+                                            {editForm.data.refrigerator_photo && editForm.data.refrigerator_photo.length > 0 && (
+                                                <div className="flex flex-wrap gap-2 justify-center border border-border p-2 rounded bg-muted/20">
+                                                    {editForm.data.refrigerator_photo.map((file, idx) => (
+                                                        <div key={idx} className="relative group size-16 border rounded overflow-hidden">
+                                                            <img src={URL.createObjectURL(file)} className="size-full object-cover" />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                         {editForm.errors.refrigerator_photo && <p className="text-xs text-destructive">{editForm.errors.refrigerator_photo}</p>}
                                     </div>
@@ -1500,12 +1536,19 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                 type="button"
                                 onClick={() => {
                                     if (tempCoords) {
-                                        const form = mapTargetForm === 'add' ? addForm : editForm;
-                                        form.setData({
-                                            ...form.data,
-                                            latitude: tempCoords.lat.toFixed(8),
-                                            longitude: tempCoords.lng.toFixed(8),
-                                        });
+                                        if (mapTargetForm === 'add') {
+                                            addForm.setData((data) => ({
+                                                ...data,
+                                                latitude: tempCoords.lat.toFixed(8),
+                                                longitude: tempCoords.lng.toFixed(8),
+                                            }));
+                                        } else {
+                                            editForm.setData((data) => ({
+                                                ...data,
+                                                latitude: tempCoords.lat.toFixed(8),
+                                                longitude: tempCoords.lng.toFixed(8),
+                                            }));
+                                        }
                                     }
                                     setIsMapPickerOpen(false);
                                 }}
