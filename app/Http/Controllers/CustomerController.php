@@ -65,11 +65,11 @@ class CustomerController extends Controller
         $customers = $query->orderBy('created_at', 'desc')->get();
         $trustTypes = TrustType::orderBy('name')->get();
 
-        // Generate CSV response
-        $filename = "customers_" . date('Y-m-d_H-i') . ".csv";
+        // Generate HTML Excel response
+        $filename = "customers_" . date('Y-m-d_H-i') . ".xls";
         
         $headers = [
-            "Content-type" => "text/csv; charset=UTF-8",
+            "Content-type" => "application/vnd.ms-excel; charset=UTF-8",
             "Content-Disposition" => "attachment; filename={$filename}",
             "Pragma" => "no-cache",
             "Cache-Control" => "must-revalidate, post-check=0, pre-check=0",
@@ -77,36 +77,62 @@ class CustomerController extends Controller
         ];
 
         $callback = function() use($customers, $trustTypes) {
-            $file = fopen('php://output', 'w');
+            $output = fopen('php://output', 'w');
             
-            // Add UTF-8 BOM for Arabic support in Excel
-            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
-            
-            // Build CSV Headers Row
-            $headersRow = [
-                'الاسم التجاري',
-                'الاسم الثلاثي',
-                'رقم الهاتف',
-                'القضاء',
-                'المنطقة',
-                'أقرب نقطة دالة',
-                'العنوان بالتفصيل',
-                'المساحة التقديرية',
-                'نوع اللافتة',
-                'التصنيف',
-                'الحالة',
-            ];
+            // Start HTML Excel file template with Right-to-Left sheet setup
+            $html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta http-equiv="Content-type" content="text/html;charset=utf-8" />
+<!--[if gte mso 9]>
+<xml>
+ <x:ExcelWorkbook>
+  <x:ExcelWorksheets>
+   <x:ExcelWorksheet>
+    <x:Name>العملاء</x:Name>
+    <x:WorksheetOptions>
+     <x:DisplayRightToLeft/>
+    </x:WorksheetOptions>
+   </x:ExcelWorksheet>
+  </x:ExcelWorksheets>
+ </x:ExcelWorkbook>
+</xml>
+<![endif]-->
+<style>
+    table { border-collapse: collapse; }
+    th { background-color: #0ea5e9; color: white; font-weight: bold; border: 1px solid #cbd5e1; text-align: center; padding: 8px 12px; font-family: Tahoma, Arial, sans-serif; font-size: 11pt; }
+    td { border: 1px solid #cbd5e1; text-align: right; vertical-align: middle; padding: 6px 12px; font-family: Tahoma, Arial, sans-serif; font-size: 10pt; white-space: nowrap; }
+    .text { mso-number-format:"\@"; }
+    .center { text-align: center; }
+</style>
+</head>
+<body dir="rtl">
+<table>
+    <thead>
+        <tr>
+            <th>الاسم التجاري</th>
+            <th>الاسم الثلاثي</th>
+            <th>رقم الهاتف</th>
+            <th>القضاء</th>
+            <th>المنطقة</th>
+            <th>أقرب نقطة دالة</th>
+            <th>العنوان بالتفصيل</th>
+            <th>المساحة التقديرية</th>
+            <th>نوع اللافتة</th>
+            <th>التصنيف</th>
+            <th>الحالة</th>';
 
-            // Add dynamic column for each trust type
             foreach ($trustTypes as $type) {
-                $headersRow[] = 'أمانة: ' . $type->name;
+                $html .= '<th>أمانة: ' . htmlspecialchars($type->name) . '</th>';
             }
 
-            $headersRow[] = 'إحداثيات الموقع (خط العرض، خط الطول)';
-            $headersRow[] = 'الموظف المسجل';
-            $headersRow[] = 'تاريخ التسجيل';
+            $html .= '<th>إحداثيات الموقع</th>
+            <th>الموظف المسجل</th>
+            <th>تاريخ التسجيل</th>
+        </tr>
+    </thead>
+    <tbody>';
 
-            fputcsv($file, $headersRow);
+            fwrite($output, $html);
 
             foreach ($customers as $c) {
                 // Formatting estimated area
@@ -118,29 +144,6 @@ class CustomerController extends Controller
                 // Formatting status
                 $statusText = $c->status === 'active' ? 'متعامل' : 'غير متعامل';
 
-                // Format phone number to preserve leading zero in Excel
-                $phoneFormatted = '';
-                if (!empty($c->phone)) {
-                    $phoneFormatted = '="' . $c->phone . '"';
-                }
-
-                // Format date as text formula to prevent Excel formatting corruption
-                $dateFormatted = '="' . $c->created_at->format('Y-m-d H:i') . '"';
-
-                $row = [
-                    $c->commercial_name,
-                    $c->full_name,
-                    $phoneFormatted,
-                    $c->district,
-                    $c->customer_area,
-                    $c->nearest_landmark,
-                    $c->location_address,
-                    $estArea,
-                    $c->sign_type,
-                    'Class ' . $c->classification,
-                    $statusText,
-                ];
-
                 // Map customer trust items
                 $trustItemsMap = [];
                 if ($c->trust_items) {
@@ -151,27 +154,43 @@ class CustomerController extends Controller
                     }
                 }
 
-                // Add code for each trust type column
+                $rowHtml = '<tr>
+                    <td>' . htmlspecialchars($c->commercial_name) . '</td>
+                    <td>' . htmlspecialchars($c->full_name) . '</td>
+                    <td class="text center">' . htmlspecialchars($c->phone ?? '') . '</td>
+                    <td class="center">' . htmlspecialchars($c->district ?? '') . '</td>
+                    <td>' . htmlspecialchars($c->customer_area ?? '') . '</td>
+                    <td>' . htmlspecialchars($c->nearest_landmark ?? '') . '</td>
+                    <td>' . htmlspecialchars($c->location_address ?? '') . '</td>
+                    <td class="center">' . htmlspecialchars($estArea) . '</td>
+                    <td class="center">' . htmlspecialchars($c->sign_type ?? '') . '</td>
+                    <td class="center">Class ' . htmlspecialchars($c->classification) . '</td>
+                    <td class="center">' . htmlspecialchars($statusText) . '</td>';
+
                 foreach ($trustTypes as $type) {
                     if (isset($trustItemsMap[$type->name])) {
                         $codeVal = $trustItemsMap[$type->name];
-                        $row[] = !empty($codeVal) ? '="' . $codeVal . '"' : '-';
+                        $rowHtml .= '<td class="text center">' . htmlspecialchars($codeVal ?: '-') . '</td>';
                     } else {
-                        $row[] = ''; // Empty if customer doesn't have this item
+                        $rowHtml .= '<td class="center">-</td>';
                     }
                 }
 
-                // Coordinates
                 $coords = ($c->latitude && $c->longitude) ? "{$c->latitude}, {$c->longitude}" : '';
-                $row[] = $coords;
-                
-                $row[] = $c->creator ? $c->creator->name : 'مجهول';
-                $row[] = $dateFormatted;
+                $rowHtml .= '<td class="center">' . htmlspecialchars($coords) . '</td>
+                    <td>' . htmlspecialchars($c->creator ? $c->creator->name : 'مجهول') . '</td>
+                    <td class="center">' . htmlspecialchars($c->created_at->format('Y-m-d H:i')) . '</td>
+                </tr>';
 
-                fputcsv($file, $row);
+                fwrite($output, $rowHtml);
             }
 
-            fclose($file);
+            $footer = '</tbody>
+</table>
+</body>
+</html>';
+            fwrite($output, $footer);
+            fclose($output);
         };
 
         return response()->stream($callback, 200, $headers);
