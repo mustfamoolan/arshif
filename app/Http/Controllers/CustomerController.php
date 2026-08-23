@@ -153,10 +153,12 @@ class CustomerController extends Controller
                     }
                 }
 
-                $addressHtml = htmlspecialchars($c->location_address ?? '');
+                $coordsHtml = '';
                 if ($c->latitude && $c->longitude) {
                     $mapsUrl = "https://www.google.com/maps/search/?api=1&query={$c->latitude},{$c->longitude}";
-                    $addressHtml = '<a href="' . htmlspecialchars($mapsUrl) . '" target="_blank" style="color: #0ea5e9; text-decoration: underline;">' . $addressHtml . '</a>';
+                    $coordsHtml = '<a href="' . htmlspecialchars($mapsUrl) . '" target="_blank" style="color: #0ea5e9; text-decoration: underline;">' . $c->latitude . ', ' . $c->longitude . '</a>';
+                } else {
+                    $coordsHtml = '-';
                 }
 
                 $photosHtml = '';
@@ -177,7 +179,7 @@ class CustomerController extends Controller
                     <td class="text center">' . htmlspecialchars($c->phone ?? '') . '</td>
                     <td class="center">' . htmlspecialchars($c->district ?? '') . '</td>
                     <td>' . htmlspecialchars($c->nearest_landmark ?? '') . '</td>
-                    <td>' . $addressHtml . '</td>
+                    <td>' . htmlspecialchars($c->location_address ?? '') . '</td>
                     <td class="center">' . htmlspecialchars($estArea) . '</td>
                     <td class="center">' . htmlspecialchars($c->sign_type ?? '') . '</td>
                     <td class="center">Class ' . htmlspecialchars($c->classification) . '</td>
@@ -193,8 +195,7 @@ class CustomerController extends Controller
                     }
                 }
 
-                $coords = ($c->latitude && $c->longitude) ? "{$c->latitude}, {$c->longitude}" : '';
-                $rowHtml .= '<td class="center">' . htmlspecialchars($coords) . '</td>
+                $rowHtml .= '<td class="center">' . $coordsHtml . '</td>
                     <td>' . htmlspecialchars($c->creator ? $c->creator->name : 'مجهول') . '</td>
                     <td class="center">' . htmlspecialchars($c->created_at->format('Y-m-d H:i')) . '</td>
                 </tr>';
