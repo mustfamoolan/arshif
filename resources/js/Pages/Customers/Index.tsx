@@ -28,6 +28,7 @@ import {
     Image as ImageIcon,
     Tag,
     Download,
+    Printer,
 } from 'lucide-react';
 
 interface TrustItem {
@@ -117,6 +118,151 @@ export default function Index({ customers, filters, trust_types, districtsList }
         if (districtFilter !== 'all') params.append('district', districtFilter);
 
         window.location.href = route('customers.export') + '?' + params.toString();
+    };
+
+    // Print current table page in formatted A4 landscape
+    const handlePrintTable = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        let htmlContent = `
+        <html dir="rtl" lang="ar">
+        <head>
+            <title>طباعة بيانات العملاء - الهادي للمكالمات التجارية</title>
+            <style>
+                @page {
+                    size: A4 landscape;
+                    margin: 1cm;
+                }
+                body {
+                    font-family: Arial, sans-serif;
+                    direction: rtl;
+                    padding: 10px;
+                    background-color: #fff;
+                    color: #000;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 20px;
+                    border-bottom: 2px solid #0284c7;
+                    padding-bottom: 10px;
+                }
+                .header h1 {
+                    font-size: 18pt;
+                    margin: 0 0 5px 0;
+                    color: #0284c7;
+                }
+                .header p {
+                    font-size: 10pt;
+                    color: #4b5563;
+                    margin: 0;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 10px;
+                    page-break-inside: auto;
+                }
+                tr {
+                    page-break-inside: avoid;
+                    page-break-after: auto;
+                }
+                th {
+                    background-color: #0ea5e9;
+                    color: white;
+                    font-weight: bold;
+                    border: 1px solid #94a3b8;
+                    text-align: center;
+                    padding: 8px 6px;
+                    font-size: 10pt;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+                td {
+                    border: 1px solid #cbd5e1;
+                    text-align: right;
+                    vertical-align: middle;
+                    padding: 6px 8px;
+                    font-size: 9pt;
+                }
+                .center {
+                    text-align: center;
+                }
+                .text-mono {
+                    font-family: monospace;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>بيانات عملاء الهادي للمكالمات التجارية</h1>
+                <p>تاريخ الطباعة: ${new Date().toLocaleString('ar-EG')}</p>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>الاسم التجاري</th>
+                        <th>الاسم الثلاثي</th>
+                        <th>رقم الهاتف</th>
+                        <th>القضاء</th>
+                        <th>أقرب نقطة دالة</th>
+                        <th>العنوان بالتفصيل</th>
+                        <th>المساحة التقديرية</th>
+                        <th>نوع اللافتة</th>
+                        <th>التصنيف</th>
+                        <th>الحالة</th>
+                        <th>الأمانات وأكوادها</th>
+                        <th>تاريخ التسجيل</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        customers.data.forEach((c) => {
+            const estArea = c.estimated_area === '10_30' ? '10-30 متر' : (c.estimated_area === '30_80' ? '30-80 متر' : (c.estimated_area === '80_plus' ? '80+ متر' : '-'));
+            const statusText = c.status === 'active' ? 'متعامل' : 'غير متعامل';
+            const dateStr = new Date(c.created_at).toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
+            
+            let trustHtml = '';
+            if (c.trust_items && c.trust_items.length > 0) {
+                trustHtml = c.trust_items.map(item => `${item.name}${item.code ? ` (${item.code})` : ''}`).join(' | ');
+            } else {
+                trustHtml = 'لا يوجد';
+            }
+
+            htmlContent += `
+                <tr>
+                    <td><b>${c.commercial_name}</b></td>
+                    <td>${c.full_name}</td>
+                    <td class="center text-mono">${c.phone || '-'}</td>
+                    <td class="center font-semibold">${c.district || '-'}</td>
+                    <td>${c.nearest_landmark || '-'}</td>
+                    <td>${c.location_address || '-'}</td>
+                    <td class="center">${estArea}</td>
+                    <td class="center">${c.sign_type || '-'}</td>
+                    <td class="center font-mono">Class ${c.classification}</td>
+                    <td class="center">${statusText}</td>
+                    <td>${trustHtml}</td>
+                    <td class="center text-mono">${dateStr}</td>
+                </tr>
+            `;
+        });
+
+        htmlContent += `
+                </tbody>
+            </table>
+            <script>
+                window.onload = function() {
+                    window.print();
+                    setTimeout(function() { window.close(); }, 500);
+                }
+            </script>
+        </body>
+        </html>
+        `;
+
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
     };
 
     // Real-time automatic polling: Auto-refresh list every 5 seconds silently
@@ -226,7 +372,6 @@ export default function Index({ customers, filters, trust_types, districtsList }
         inside_residential_complex: false,
         inside_residential_area: false,
         nearest_landmark: '',
-        customer_area: '',
         district: '',
         estimated_area: '', // Left empty to force selection
         trust_items: [] as TrustItem[],
@@ -248,7 +393,6 @@ export default function Index({ customers, filters, trust_types, districtsList }
         inside_residential_complex: false,
         inside_residential_area: false,
         nearest_landmark: '',
-        customer_area: '',
         district: '',
         estimated_area: '',
         trust_items: [] as TrustItem[],
@@ -305,7 +449,6 @@ export default function Index({ customers, filters, trust_types, districtsList }
             inside_residential_complex: c.inside_residential_complex,
             inside_residential_area: c.inside_residential_area,
             nearest_landmark: c.nearest_landmark || '',
-            customer_area: c.customer_area || '',
             district: c.district || '',
             estimated_area: c.estimated_area || '',
             trust_items: c.trust_items || [],
@@ -364,6 +507,15 @@ export default function Index({ customers, filters, trust_types, districtsList }
                             تصدير إكسل
                         </Button>
 
+                        <Button
+                            onClick={handlePrintTable}
+                            variant="outline"
+                            className="gap-2 text-xs font-bold h-9 border-sky-600/30 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/20 dark:border-sky-500/20 dark:text-sky-500"
+                        >
+                            <Printer className="h-4 w-4" />
+                            طباعة الجدول
+                        </Button>
+
                         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                         <DialogTrigger asChild>
                             <Button className="gap-2 text-xs font-bold h-9">
@@ -418,19 +570,8 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                         {addForm.errors.phone && <p className="text-xs text-destructive">{addForm.errors.phone}</p>}
                                     </div>
 
-                                    {/* Area */}
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">المنطقة *</Label>
-                                        <Input
-                                            value={addForm.data.customer_area}
-                                            placeholder="مثال: الجبيلة"
-                                            onChange={(e) => addForm.setData('customer_area', e.target.value)}
-                                        />
-                                        {addForm.errors.customer_area && <p className="text-xs text-destructive">{addForm.errors.customer_area}</p>}
-                                    </div>
-
                                     {/* District (القضاء) */}
-                                    <div className="space-y-1.5 col-span-1 md:col-span-2">
+                                    <div className="space-y-1.5">
                                         <Label className="text-xs font-semibold">القضاء (البصرة) *</Label>
                                         <Select
                                             value={addForm.data.district}
@@ -858,7 +999,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                             <TableRow>
                                                 <TableHead className="text-right">الاسم التجاري</TableHead>
                                                 <TableHead className="text-right">الاسم الثلاثي</TableHead>
-                                                <TableHead className="text-right">القضاء والمنطقة</TableHead>
+                                                <TableHead className="text-right">القضاء</TableHead>
                                                 <TableHead className="text-right">الهاتف</TableHead>
                                                 <TableHead className="text-right">التصنيف</TableHead>
                                                 <TableHead className="text-right">حالة التعامل</TableHead>
@@ -878,12 +1019,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-xs">{c.full_name}</TableCell>
-                                                    <TableCell className="text-xs">
-                                                        <div className="flex flex-col">
-                                                            <span className="font-semibold">{c.district || '-'}</span>
-                                                            <span className="text-[10px] text-muted-foreground">{c.customer_area || '-'}</span>
-                                                        </div>
-                                                    </TableCell>
+                                                    <TableCell className="text-xs font-semibold">{c.district || '-'}</TableCell>
                                                     <TableCell className="font-mono text-xs text-muted-foreground">
                                                         {c.phone ? (
                                                             <span className="flex items-center gap-1">
@@ -1162,19 +1298,8 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                         {editForm.errors.phone && <p className="text-xs text-destructive">{editForm.errors.phone}</p>}
                                     </div>
 
-                                    {/* Area */}
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs font-semibold">المنطقة *</Label>
-                                        <Input
-                                            value={editForm.data.customer_area}
-                                            onChange={(e) => editForm.setData('customer_area', e.target.value)}
-                                            required
-                                        />
-                                        {editForm.errors.customer_area && <p className="text-xs text-destructive">{editForm.errors.customer_area}</p>}
-                                    </div>
-
                                     {/* District (القضاء) */}
-                                    <div className="space-y-1.5 col-span-1 md:col-span-2">
+                                    <div className="space-y-1.5">
                                         <Label className="text-xs font-semibold">القضاء (البصرة) *</Label>
                                         <Select
                                             value={editForm.data.district}

@@ -36,14 +36,13 @@ class CustomerController extends Controller
     {
         $query = Customer::with('creator');
 
-        // Filtering by search term (full_name, commercial_name, phone, area)
+        // Filtering by search term (full_name, commercial_name, phone)
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('full_name', 'like', "%{$search}%")
                   ->orWhere('commercial_name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('customer_area', 'like', "%{$search}%");
+                  ->orWhere('phone', 'like', "%{$search}%");
             });
         }
 
@@ -113,13 +112,13 @@ class CustomerController extends Controller
             <th>الاسم الثلاثي</th>
             <th>رقم الهاتف</th>
             <th>القضاء</th>
-            <th>المنطقة</th>
             <th>أقرب نقطة دالة</th>
             <th>العنوان بالتفصيل</th>
             <th>المساحة التقديرية</th>
             <th>نوع اللافتة</th>
             <th>التصنيف</th>
-            <th>الحالة</th>';
+            <th>الحالة</th>
+            <th>صور البراد</th>';
 
             foreach ($trustTypes as $type) {
                 $html .= '<th>أمانة: ' . htmlspecialchars($type->name) . '</th>';
@@ -154,18 +153,36 @@ class CustomerController extends Controller
                     }
                 }
 
+                $addressHtml = htmlspecialchars($c->location_address ?? '');
+                if ($c->latitude && $c->longitude) {
+                    $mapsUrl = "https://www.google.com/maps/search/?api=1&query={$c->latitude},{$c->longitude}";
+                    $addressHtml = '<a href="' . htmlspecialchars($mapsUrl) . '" target="_blank" style="color: #0ea5e9; text-decoration: underline;">' . $addressHtml . '</a>';
+                }
+
+                $photosHtml = '';
+                if (!empty($c->refrigerator_photo) && is_array($c->refrigerator_photo)) {
+                    $links = [];
+                    foreach ($c->refrigerator_photo as $idx => $photoPath) {
+                        $fullPhotoUrl = rtrim(env('APP_URL', 'http://localhost'), '/') . $photoPath;
+                        $links[] = '<a href="' . htmlspecialchars($fullPhotoUrl) . '" target="_blank" style="color: #0ea5e9; text-decoration: underline; font-weight: bold; margin-left: 5px;">صورة ' . ($idx + 1) . '</a>';
+                    }
+                    $photosHtml = implode(' | ', $links);
+                } else {
+                    $photosHtml = '-';
+                }
+
                 $rowHtml = '<tr>
                     <td>' . htmlspecialchars($c->commercial_name) . '</td>
                     <td>' . htmlspecialchars($c->full_name) . '</td>
                     <td class="text center">' . htmlspecialchars($c->phone ?? '') . '</td>
                     <td class="center">' . htmlspecialchars($c->district ?? '') . '</td>
-                    <td>' . htmlspecialchars($c->customer_area ?? '') . '</td>
                     <td>' . htmlspecialchars($c->nearest_landmark ?? '') . '</td>
-                    <td>' . htmlspecialchars($c->location_address ?? '') . '</td>
+                    <td>' . $addressHtml . '</td>
                     <td class="center">' . htmlspecialchars($estArea) . '</td>
                     <td class="center">' . htmlspecialchars($c->sign_type ?? '') . '</td>
                     <td class="center">Class ' . htmlspecialchars($c->classification) . '</td>
-                    <td class="center">' . htmlspecialchars($statusText) . '</td>';
+                    <td class="center">' . htmlspecialchars($statusText) . '</td>
+                    <td class="center">' . $photosHtml . '</td>';
 
                 foreach ($trustTypes as $type) {
                     if (isset($trustItemsMap[$type->name])) {
@@ -203,14 +220,13 @@ class CustomerController extends Controller
     {
         $query = Customer::with('creator');
 
-        // Filtering by search term (full_name, commercial_name, phone, area)
+        // Filtering by search term (full_name, commercial_name, phone)
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('full_name', 'like', "%{$search}%")
                   ->orWhere('commercial_name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('customer_area', 'like', "%{$search}%");
+                  ->orWhere('phone', 'like', "%{$search}%");
             });
         }
 
@@ -264,7 +280,6 @@ class CustomerController extends Controller
             'inside_residential_complex' => 'boolean',
             'inside_residential_area' => 'boolean',
             'nearest_landmark' => 'required|string|max:255',
-            'customer_area' => 'required|string|max:255',
             'district' => 'required|string|in:' . implode(',', $this->districts),
             'estimated_area' => 'required|string|in:10_30,30_80,80_plus',
             'trust_items' => 'required|array|min:1',
@@ -283,7 +298,6 @@ class CustomerController extends Controller
             'longitude.required' => 'إحداثي خط الطول مطلوب.',
             'location_address.required' => 'حقل العنوان التفصيلي مطلوب.',
             'nearest_landmark.required' => 'حقل أقرب نقطة دالة مطلوب.',
-            'customer_area.required' => 'حقل المنطقة مطلوب.',
             'district.required' => 'حقل القضاء مطلوب وهو إجباري.',
             'district.in' => 'القضاء المحدد غير صالح.',
             'estimated_area.required' => 'حقل المساحة التقديرية مطلوب.',
@@ -358,7 +372,6 @@ class CustomerController extends Controller
             'inside_residential_complex' => 'boolean',
             'inside_residential_area' => 'boolean',
             'nearest_landmark' => 'required|string|max:255',
-            'customer_area' => 'required|string|max:255',
             'district' => 'required|string|in:' . implode(',', $this->districts),
             'estimated_area' => 'required|string|in:10_30,30_80,80_plus',
             'trust_items' => 'required|array|min:1',
@@ -377,7 +390,6 @@ class CustomerController extends Controller
             'longitude.required' => 'إحداثي خط الطول مطلوب.',
             'location_address.required' => 'حقل العنوان التفصيلي مطلوب.',
             'nearest_landmark.required' => 'حقل أقرب نقطة دالة مطلوب.',
-            'customer_area.required' => 'حقل المنطقة مطلوب.',
             'district.required' => 'حقل القضاء مطلوب وهو إجباري.',
             'district.in' => 'القضاء المحدد غير صالح.',
             'estimated_area.required' => 'حقل المساحة التقديرية مطلوب.',

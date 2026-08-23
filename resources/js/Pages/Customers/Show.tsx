@@ -119,7 +119,6 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
         full_name: customer.full_name,
         commercial_name: customer.commercial_name,
         phone: customer.phone || '',
-        customer_area: customer.customer_area || '',
         district: customer.district || '',
         nearest_landmark: customer.nearest_landmark || '',
         location_address: customer.location_address || '',
@@ -154,7 +153,6 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
         formData.append('full_name', editForm.data.full_name);
         formData.append('commercial_name', editForm.data.commercial_name);
         formData.append('phone', editForm.data.phone);
-        formData.append('customer_area', editForm.data.customer_area);
         formData.append('district', editForm.data.district);
         formData.append('nearest_landmark', editForm.data.nearest_landmark);
         formData.append('location_address', editForm.data.location_address);
@@ -325,10 +323,10 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
                                         </span>
                                     </div>
                                     <div className="space-y-1">
-                                        <span className="text-[11px] text-muted-foreground block">القضاء والمنطقة</span>
+                                        <span className="text-[11px] text-muted-foreground block">القضاء</span>
                                         <span className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
                                             <MapPin className="size-3.5 text-muted-foreground" />
-                                            {customer.district ? `${customer.district} - ` : ''}{customer.customer_area || 'غير محددة'}
+                                            {customer.district || 'غير محدد'}
                                         </span>
                                     </div>
                                 </div>
@@ -581,11 +579,6 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
                                 {editForm.errors.phone && <p className="text-xs text-destructive">{editForm.errors.phone}</p>}
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold">المنطقة *</Label>
-                                <Input value={editForm.data.customer_area} onChange={e => editForm.setData('customer_area', e.target.value)} required />
-                                {editForm.errors.customer_area && <p className="text-xs text-destructive">{editForm.errors.customer_area}</p>}
-                            </div>
-                            <div className="space-y-1.5 col-span-1 md:col-span-2">
                                 <Label className="text-xs font-semibold">القضاء (البصرة) *</Label>
                                 <Select
                                     value={editForm.data.district}
