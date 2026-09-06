@@ -197,12 +197,17 @@ export default function MapPage({ customers, filters, districtsList }: Props) {
                         ${c.nearest_landmark ? `<p style="font-size: 11px; color: #334155; margin: 0 0 6px 0;"><b>أقرب نقطة:</b> ${c.nearest_landmark}</p>` : ''}
                         ${c.phone ? `<p style="font-size: 11px; color: #0284c7; margin: 0 0 8px 0; direction: ltr; text-align: right;">📞 <a href="tel:${c.phone}" style="color: #0284c7; font-weight: bold; text-decoration: none;">${c.phone}</a></p>` : ''}
 
-                        <div style="display: flex; gap: 4px; margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 8px;">
-                            <a href="/customers/${c.id}" target="_blank" style="flex: 1; text-align: center; background: #0284c7; color: white; padding: 5px 8px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
-                                عرض التفاصيل 👁️
-                            </a>
-                            <a href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank" style="background: #22c55e; color: white; padding: 5px 8px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold;">
-                                Google 📍
+                        <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 8px;">
+                            <div style="display: flex; gap: 4px;">
+                                <a href="/customers/${c.id}" target="_blank" style="flex: 1; text-align: center; background: #0284c7; color: white; padding: 6px 8px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                    التفاصيل 👁️
+                                </a>
+                                <a href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank" style="flex: 1; text-align: center; background: #059669; color: white; padding: 6px 8px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                    تطبيق الخرائط 🗺️
+                                </a>
+                            </div>
+                            <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" style="text-align: center; background: #ea580c; color: white; padding: 6px 8px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                🚗 بدء التوجيه والملاحة (Google Maps)
                             </a>
                         </div>
                     </div>
