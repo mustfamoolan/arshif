@@ -266,6 +266,50 @@ class CustomerController extends Controller
     }
 
     /**
+     * Display full-page map view of all customers with coordinates.
+     */
+    public function mapView(Request $request): Response
+    {
+        $query = Customer::with('creator')
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude');
+
+        // Filtering by search term
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('full_name', 'like', "%{$search}%")
+                  ->orWhere('commercial_name', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
+
+        // Filtering by status
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        // Filtering by classification
+        if ($request->filled('classification')) {
+            $query->where('classification', $request->input('classification'));
+        }
+
+        // Filtering by district
+        if ($request->filled('district')) {
+            $query->where('district', $request->input('district'));
+        }
+
+        $customers = $query->orderBy('created_at', 'desc')->get();
+
+        return Inertia::render('Customers/Map', [
+            'customers' => $customers,
+            'filters' => $request->only(['search', 'status', 'classification', 'district']),
+            'districtsList' => $this->districts,
+            'trust_types' => TrustType::orderBy('name')->get(),
+        ]);
+    }
+
+    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)

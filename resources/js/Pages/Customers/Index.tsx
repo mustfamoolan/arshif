@@ -498,6 +498,16 @@ export default function Index({ customers, filters, trust_types, districtsList }
                     </div>
 
                     <div className="flex items-center gap-2">
+                        <Link href={route('customers.map')}>
+                            <Button
+                                variant="outline"
+                                className="gap-2 text-xs font-bold h-9 border-primary/30 text-primary hover:bg-primary/5 dark:hover:bg-primary/20"
+                            >
+                                <MapPin className="h-4 w-4" />
+                                عرض الخريطة الشاملة
+                            </Button>
+                        </Link>
+
                         <Button
                             onClick={handleExportExcel}
                             variant="outline"

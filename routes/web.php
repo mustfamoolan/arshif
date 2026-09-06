@@ -21,6 +21,7 @@ Route::get('/dashboard', function () {
 // Protected Routes for Authenticated Users
 Route::middleware(['auth'])->group(function () {
     Route::get('customers/export', [CustomerController::class, 'exportExcel'])->name('customers.export');
+    Route::get('customers/map', [CustomerController::class, 'mapView'])->name('customers.map');
     Route::resource('customers', CustomerController::class);
 });
 
