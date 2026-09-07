@@ -689,7 +689,7 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
 
                             {/* Dynamic Trust Items List on Edit */}
                             <div className="space-y-3 col-span-1 md:col-span-2 text-right">
-                                <Label className="text-xs font-semibold block mb-1">الأمانات المستلمة وترميزها (اختر واحدة على الأقل وسجل كودها) *</Label>
+                                <Label className="text-xs font-semibold block mb-1">الأمانات المستلمة وترميزها (اختياري)</Label>
                                 <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto p-1 border border-border rounded-md">
                                     {trust_types.map((type) => {
                                         const isChecked = editForm.data.trust_items.some(item => item.name === type.name);
@@ -716,7 +716,7 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
                                                 {isChecked && (
                                                     <div className="w-full sm:w-48">
                                                         <Input
-                                                            placeholder="كود الأمانة..."
+                                                            placeholder="كود الأمانة (اختياري)..."
                                                             value={selectedItem?.code || ''}
                                                             onChange={(e) => {
                                                                 const newItems = editForm.data.trust_items.map(item => {
@@ -736,9 +736,6 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
                                     })}
                                 </div>
                                 {editForm.errors.trust_items && <p className="text-xs text-destructive">{editForm.errors.trust_items}</p>}
-                                {Object.keys(editForm.errors).some(k => k.startsWith('trust_items.')) && (
-                                    <p className="text-xs text-destructive">يعبأ الكود إجبارياً لكل أمانة يتم تحديدها.</p>
-                                )}
                             </div>
                         </div>
 

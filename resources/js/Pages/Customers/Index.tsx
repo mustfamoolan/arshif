@@ -790,11 +790,11 @@ export default function Index({ customers, filters, trust_types, districtsList }
 
                                     {/* Dynamic Trust Items List (Name + Individual Code) */}
                                     <div className="space-y-3 col-span-1 md:col-span-2 text-right">
-                                        <Label className="text-xs font-semibold block mb-1">الأمانات المستلمة وترميزها (اختر واحدة على الأقل وسجل كودها) *</Label>
+                                        <Label className="text-xs font-semibold block mb-1">الأمانات المستلمة وترميزها (اختياري)</Label>
                                         
                                         {trust_types.length === 0 ? (
                                             <p className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 p-2 rounded">
-                                                لا توجد أمانات معرفة حالياً في النظام. يرجى التوجه لصفحة "إدارة الأمانات" لإضافتها أولاً.
+                                                لا توجد أمانات معرفة حالياً في النظام.
                                             </p>
                                         ) : (
                                             <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto p-1 border border-border rounded-md">
@@ -823,7 +823,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                                             {isChecked && (
                                                                 <div className="w-full sm:w-48">
                                                                     <Input
-                                                                        placeholder="كود الأمانة..."
+                                                                        placeholder="كود الأمانة (اختياري)..."
                                                                         value={selectedItem?.code || ''}
                                                                         onChange={(e) => {
                                                                             const newItems = addForm.data.trust_items.map(item => {
@@ -845,14 +845,11 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                             </div>
                                         )}
                                         {addForm.errors.trust_items && <p className="text-xs text-destructive">{addForm.errors.trust_items}</p>}
-                                        {Object.keys(addForm.errors).some(k => k.startsWith('trust_items.')) && (
-                                            <p className="text-xs text-destructive">يجب تسجيل كود لكل أمانة محددة للعميل.</p>
-                                        )}
                                     </div>
 
                                     {/* File upload */}
                                     <div className="space-y-1.5 col-span-1 md:col-span-2">
-                                        <Label className="text-xs font-semibold block">صور براد العميل (يمكن رفع أكثر من صورة معاً) *</Label>
+                                        <Label className="text-xs font-semibold block">صور براد العميل (اختياري)</Label>
                                         <div className="flex flex-col gap-3 mt-1.5">
                                             <Input
                                                 type="file"
@@ -873,7 +870,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                                 <span className="text-xs font-semibold text-foreground">
                                                     {addForm.data.refrigerator_photo && addForm.data.refrigerator_photo.length > 0 
                                                         ? `تم اختيار ${addForm.data.refrigerator_photo.length} صور` 
-                                                        : 'اضغط لرفع صور البراد'}
+                                                        : 'اضغط لرفع صور البراد (اختياري)'}
                                                 </span>
                                                 <span className="text-[10px] text-muted-foreground">يمكنك اختيار ملفات متعددة (JPG, PNG) بحد أقصى 4 ميجابايت لكل صورة</span>
                                             </Label>
@@ -1546,7 +1543,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                                             {isChecked && (
                                                                 <div className="w-full sm:w-48">
                                                                     <Input
-                                                                        placeholder="كود الأمانة..."
+                                                                        placeholder="كود الأمانة (اختياري)..."
                                                                         value={selectedItem?.code || ''}
                                                                         onChange={(e) => {
                                                                             const newItems = editForm.data.trust_items.map(item => {

@@ -327,12 +327,12 @@ class CustomerController extends Controller
             'nearest_landmark' => 'required|string|max:255',
             'district' => 'required|string|in:' . implode(',', $this->districts),
             'estimated_area' => 'required|string|in:10_30,30_80,80_plus',
-            'trust_items' => 'required|array|min:1',
-            'trust_items.*.name' => 'required|string|max:255',
-            'trust_items.*.code' => 'required|string|max:255',
+            'trust_items' => 'nullable|array',
+            'trust_items.*.name' => 'nullable|string|max:255',
+            'trust_items.*.code' => 'nullable|string|max:255',
             'sign_type' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
-            'refrigerator_photo' => 'required|array|min:1', // Required array of photos
+            'refrigerator_photo' => 'nullable|array', // Optional array of photos
             'refrigerator_photo.*' => 'image|max:4096',     // Max 4MB per photo
             'status' => 'required|string|in:active,inactive',
             'classification' => 'required|string|in:A,B,C',
@@ -346,12 +346,8 @@ class CustomerController extends Controller
             'district.required' => 'حقل القضاء مطلوب وهو إجباري.',
             'district.in' => 'القضاء المحدد غير صالح.',
             'estimated_area.required' => 'حقل المساحة التقديرية مطلوب.',
-            'trust_items.required' => 'يجب اختيار أمانة واحدة على الأقل وتحديد كود لها.',
-            'trust_items.min' => 'يجب اختيار أمانة واحدة على الأقل وتحديد كود لها.',
-            'trust_items.*.code.required' => 'حقل كود الأمانة مطلوب لكل أمانة محددة.',
             'sign_type.required' => 'حقل نوع اللافتة مطلوب.',
             'phone.required' => 'حقل رقم هاتف العميل مطلوب.',
-            'refrigerator_photo.required' => 'يجب رفع صورة واحدة على الأقل لبراد العميل لتسجيله.',
             'refrigerator_photo.array' => 'صورة البراد يجب أن تكون مصفوفة.',
             'refrigerator_photo.*.image' => 'كل ملف مرفوع يجب أن يكون صورة.',
             'refrigerator_photo.*.max' => 'حجم كل صورة يجب ألا يتجاوز 4 ميجابايت.',
@@ -373,6 +369,16 @@ class CustomerController extends Controller
         $validated['inside_residential_complex'] = $request->boolean('inside_residential_complex');
         $validated['inside_residential_area'] = $request->boolean('inside_residential_area');
 
+        // Filter and clean trust items if present
+        if ($request->has('trust_items') && is_array($request->input('trust_items'))) {
+            $trustItems = array_values(array_filter($request->input('trust_items'), function ($item) {
+                return !empty($item['name']);
+            }));
+            $validated['trust_items'] = $trustItems;
+        } else {
+            $validated['trust_items'] = [];
+        }
+
         if ($request->hasFile('refrigerator_photo')) {
             $photos = [];
             foreach ($request->file('refrigerator_photo') as $file) {
@@ -380,6 +386,8 @@ class CustomerController extends Controller
                 $photos[] = '/storage/' . $path;
             }
             $validated['refrigerator_photo'] = $photos;
+        } else {
+            $validated['refrigerator_photo'] = null;
         }
 
         Customer::create($validated);
@@ -419,9 +427,9 @@ class CustomerController extends Controller
             'nearest_landmark' => 'required|string|max:255',
             'district' => 'required|string|in:' . implode(',', $this->districts),
             'estimated_area' => 'required|string|in:10_30,30_80,80_plus',
-            'trust_items' => 'required|array|min:1',
-            'trust_items.*.name' => 'required|string|max:255',
-            'trust_items.*.code' => 'required|string|max:255',
+            'trust_items' => 'nullable|array',
+            'trust_items.*.name' => 'nullable|string|max:255',
+            'trust_items.*.code' => 'nullable|string|max:255',
             'sign_type' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
             'refrigerator_photo' => 'nullable|array', // Nullable array on update
@@ -438,9 +446,6 @@ class CustomerController extends Controller
             'district.required' => 'حقل القضاء مطلوب وهو إجباري.',
             'district.in' => 'القضاء المحدد غير صالح.',
             'estimated_area.required' => 'حقل المساحة التقديرية مطلوب.',
-            'trust_items.required' => 'يجب اختيار أمانة واحدة على الأقل وتحديد كود لها.',
-            'trust_items.min' => 'يجب اختيار أمانة واحدة على الأقل وتحديد كود لها.',
-            'trust_items.*.code.required' => 'حقل كود الأمانة مطلوب لكل أمانة محددة.',
             'sign_type.required' => 'حقل نوع اللافتة مطلوب.',
             'phone.required' => 'حقل رقم هاتف العميل مطلوب.',
             'refrigerator_photo.array' => 'صورة البراد يجب أن تكون مصفوفة.',
@@ -462,6 +467,16 @@ class CustomerController extends Controller
         $validated['is_side_street'] = $request->boolean('is_side_street');
         $validated['inside_residential_complex'] = $request->boolean('inside_residential_complex');
         $validated['inside_residential_area'] = $request->boolean('inside_residential_area');
+
+        // Filter and clean trust items if present
+        if ($request->has('trust_items') && is_array($request->input('trust_items'))) {
+            $trustItems = array_values(array_filter($request->input('trust_items'), function ($item) {
+                return !empty($item['name']);
+            }));
+            $validated['trust_items'] = $trustItems;
+        } else {
+            $validated['trust_items'] = [];
+        }
 
         if ($request->hasFile('refrigerator_photo')) {
             // Delete old photos if exist
