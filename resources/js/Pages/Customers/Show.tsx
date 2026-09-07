@@ -242,7 +242,7 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
             <div className="space-y-5 max-w-5xl mx-auto pb-12" dir="rtl">
 
                 {/* ── Header Row ── */}
-                <div className="flex flex-row items-start justify-between gap-3 pb-4 border-b border-border">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-border">
                     <div className="space-y-1 flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5 mb-1">
                             <Badge variant="outline" className="border-primary/20 text-primary text-[10px] font-bold">ملف العميل</Badge>
@@ -263,30 +263,30 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                        <Link href={route('customers.index')}>
-                            <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+                    <div className="grid grid-cols-3 sm:flex items-center gap-2 w-full sm:w-auto">
+                        <Link href={route('customers.index')} className="w-full sm:w-auto">
+                            <Button variant="outline" size="sm" className="w-full sm:w-auto gap-1.5 text-xs h-9 justify-center">
                                 <ArrowRight className="size-3.5" />
-                                <span className="hidden sm:inline">رجوع</span>
+                                <span>رجوع</span>
                             </Button>
                         </Link>
                         <Button
                             variant="outline"
                             size="sm"
-                            className="gap-1.5 text-xs h-8 border-primary/30 text-primary hover:bg-primary/10"
+                            className="w-full sm:w-auto gap-1.5 text-xs h-9 border-primary/30 text-primary hover:bg-primary/10 justify-center"
                             onClick={() => setEditOpen(true)}
                         >
                             <Pencil className="size-3.5" />
-                            <span className="hidden sm:inline">تعديل</span>
+                            <span>تعديل</span>
                         </Button>
                         <Button
                             variant="outline"
                             size="sm"
-                            className="gap-1.5 text-xs h-8 border-destructive/30 text-destructive hover:bg-destructive/10"
+                            className="w-full sm:w-auto gap-1.5 text-xs h-9 border-destructive/30 text-destructive hover:bg-destructive/10 justify-center"
                             onClick={() => setDeleteOpen(true)}
                         >
                             <Trash2 className="size-3.5" />
-                            <span className="hidden sm:inline">حذف</span>
+                            <span>حذف</span>
                         </Button>
                     </div>
                 </div>

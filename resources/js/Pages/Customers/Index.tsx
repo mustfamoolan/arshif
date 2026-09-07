@@ -486,7 +486,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
 
             <div className="space-y-6" dir="rtl">
                 {/* Header Actions */}
-                <div className="flex flex-row items-center justify-between gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border shadow-sm">
                     <div>
                         <h1 className="text-lg md:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
                             <Users className="h-5 w-5 md:h-6 md:w-6 text-primary" />
@@ -497,40 +497,40 @@ export default function Index({ customers, filters, trust_types, districtsList }
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <Link href={route('customers.map')}>
+                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto">
+                        <Link href={route('customers.map')} className="w-full sm:w-auto">
                             <Button
                                 variant="outline"
-                                className="gap-2 text-xs font-bold h-9 border-primary/30 text-primary hover:bg-primary/5 dark:hover:bg-primary/20"
+                                className="w-full sm:w-auto gap-2 text-xs font-bold h-9 border-primary/30 text-primary hover:bg-primary/5 dark:hover:bg-primary/20 justify-center"
                             >
                                 <MapPin className="h-4 w-4" />
-                                عرض الخريطة الشاملة
+                                <span>الخريطة الشاملة</span>
                             </Button>
                         </Link>
 
                         <Button
                             onClick={handleExportExcel}
                             variant="outline"
-                            className="gap-2 text-xs font-bold h-9 border-green-600/30 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20 dark:border-green-500/20 dark:text-green-500"
+                            className="w-full sm:w-auto gap-2 text-xs font-bold h-9 border-green-600/30 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20 dark:border-green-500/20 dark:text-green-500 justify-center"
                         >
                             <Download className="h-4 w-4" />
-                            تصدير إكسل
+                            <span>تصدير إكسل</span>
                         </Button>
 
                         <Button
                             onClick={handlePrintTable}
                             variant="outline"
-                            className="gap-2 text-xs font-bold h-9 border-sky-600/30 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/20 dark:border-sky-500/20 dark:text-sky-500"
+                            className="w-full sm:w-auto gap-2 text-xs font-bold h-9 border-sky-600/30 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/20 dark:border-sky-500/20 dark:text-sky-500 justify-center"
                         >
                             <Printer className="h-4 w-4" />
-                            طباعة الجدول
+                            <span>طباعة</span>
                         </Button>
 
                         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                         <DialogTrigger asChild>
-                            <Button className="gap-2 text-xs font-bold h-9">
+                            <Button className="w-full sm:w-auto gap-2 text-xs font-bold h-9 justify-center">
                                 <UserPlus className="h-4 w-4" />
-                                إضافة عميل جديد
+                                <span>إضافة عميل</span>
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
