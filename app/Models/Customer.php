@@ -29,6 +29,7 @@ class Customer extends Model
         'phone',
         'refrigerator_photo',
         'status',
+        'departments',
         'classification',
         'created_by',
         'district',
@@ -40,6 +41,7 @@ class Customer extends Model
         'inside_residential_complex' => 'boolean',
         'inside_residential_area' => 'boolean',
         'trust_items' => 'array',
+        'departments' => 'array',
         'latitude' => 'float',
         'longitude' => 'float',
     ];

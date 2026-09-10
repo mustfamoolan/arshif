@@ -29,6 +29,15 @@ class CustomerController extends Controller
         'قضاء النشوة'
     ];
 
+    // قائمة الأقسام المتاحة للمتعاملين
+    protected $departmentsList = [
+        'قسم ارسي',
+        'قسم النايس',
+        'قسم ابو جنة',
+        'قسم المانشيز',
+        'قسم الرند',
+    ];
+
     /**
      * Export customers to Excel (CSV with UTF-8 BOM).
      */
@@ -59,6 +68,12 @@ class CustomerController extends Controller
         // Filtering by district
         if ($request->filled('district')) {
             $query->where('district', $request->input('district'));
+        }
+
+        // Filtering by department
+        if ($request->filled('department')) {
+            $dept = $request->input('department');
+            $query->whereJsonContains('departments', $dept);
         }
 
         $customers = $query->orderBy('created_at', 'desc')->get();
@@ -124,7 +139,8 @@ class CustomerController extends Controller
                 $html .= '<th>أمانة: ' . htmlspecialchars($type->name) . '</th>';
             }
 
-            $html .= '<th>إحداثيات الموقع</th>
+            $html .= '<th>الأقسام المتعامل معها</th>
+            <th>إحداثيات الموقع</th>
             <th>الموظف المسجل</th>
             <th>تاريخ التسجيل</th>
         </tr>
@@ -142,6 +158,9 @@ class CustomerController extends Controller
 
                 // Formatting status
                 $statusText = $c->status === 'active' ? 'متعامل' : 'غير متعامل';
+                $deptsText = ($c->status === 'active' && !empty($c->departments) && is_array($c->departments)) 
+                    ? implode(' | ', $c->departments) 
+                    : '-';
 
                 // Map customer trust items
                 $trustItemsMap = [];
@@ -195,7 +214,8 @@ class CustomerController extends Controller
                     }
                 }
 
-                $rowHtml .= '<td class="center">' . $coordsHtml . '</td>
+                $rowHtml .= '<td class="center">' . htmlspecialchars($deptsText) . '</td>
+                    <td class="center">' . $coordsHtml . '</td>
                     <td>' . htmlspecialchars($c->creator ? $c->creator->name : 'مجهول') . '</td>
                     <td class="center">' . htmlspecialchars($c->created_at->format('Y-m-d H:i')) . '</td>
                 </tr>';
@@ -246,6 +266,12 @@ class CustomerController extends Controller
             $query->where('district', $request->input('district'));
         }
 
+        // Filtering by department
+        if ($request->filled('department')) {
+            $dept = $request->input('department');
+            $query->whereJsonContains('departments', $dept);
+        }
+
         // Get per page items limit
         $perPage = intval($request->input('per_page', 10));
         if (!in_array($perPage, [10, 25, 50, 100])) {
@@ -259,9 +285,10 @@ class CustomerController extends Controller
 
         return Inertia::render('Customers/Index', [
             'customers' => $customers,
-            'filters' => $request->only(['search', 'status', 'classification', 'district', 'per_page']),
+            'filters' => $request->only(['search', 'status', 'classification', 'district', 'department', 'per_page']),
             'trust_types' => TrustType::orderBy('name')->get(),
             'districtsList' => $this->districts,
+            'departmentsList' => $this->departmentsList,
         ]);
     }
 
@@ -299,12 +326,19 @@ class CustomerController extends Controller
             $query->where('district', $request->input('district'));
         }
 
+        // Filtering by department
+        if ($request->filled('department')) {
+            $dept = $request->input('department');
+            $query->whereJsonContains('departments', $dept);
+        }
+
         $customers = $query->orderBy('created_at', 'desc')->get();
 
         return Inertia::render('Customers/Map', [
             'customers' => $customers,
-            'filters' => $request->only(['search', 'status', 'classification', 'district']),
+            'filters' => $request->only(['search', 'status', 'classification', 'district', 'department']),
             'districtsList' => $this->districts,
+            'departmentsList' => $this->departmentsList,
             'trust_types' => TrustType::orderBy('name')->get(),
         ]);
     }
@@ -332,9 +366,11 @@ class CustomerController extends Controller
             'trust_items.*.code' => 'nullable|string|max:255',
             'sign_type' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
-            'refrigerator_photo' => 'nullable|array', // Optional array of photos
-            'refrigerator_photo.*' => 'image|max:4096',     // Max 4MB per photo
+            'refrigerator_photo' => 'nullable|array',
+            'refrigerator_photo.*' => 'image|max:4096',
             'status' => 'required|string|in:active,inactive',
+            'departments' => 'nullable|array',
+            'departments.*' => 'string',
             'classification' => 'required|string|in:A,B,C',
         ], [
             'full_name.required' => 'حقل الاسم الثلاثي مطلوب.',
@@ -353,7 +389,6 @@ class CustomerController extends Controller
             'refrigerator_photo.*.max' => 'حجم كل صورة يجب ألا يتجاوز 4 ميجابايت.',
         ]);
 
-        // التحقق من تحديد خيار واحد على الأقل لخصائص موقع المحل
         if (!$request->boolean('is_main_street') && 
             !$request->boolean('is_side_street') && 
             !$request->boolean('inside_residential_complex') && 
@@ -369,7 +404,12 @@ class CustomerController extends Controller
         $validated['inside_residential_complex'] = $request->boolean('inside_residential_complex');
         $validated['inside_residential_area'] = $request->boolean('inside_residential_area');
 
-        // Filter and clean trust items if present
+        if ($request->input('status') === 'active') {
+            $validated['departments'] = array_values(array_filter((array) $request->input('departments', [])));
+        } else {
+            $validated['departments'] = [];
+        }
+
         if ($request->has('trust_items') && is_array($request->input('trust_items'))) {
             $trustItems = array_values(array_filter($request->input('trust_items'), function ($item) {
                 return !empty($item['name']);
@@ -406,6 +446,7 @@ class CustomerController extends Controller
             'customer' => $customer,
             'trust_types' => TrustType::orderBy('name')->get(),
             'districtsList' => $this->districts,
+            'departmentsList' => $this->departmentsList,
         ]);
     }
 
@@ -432,9 +473,11 @@ class CustomerController extends Controller
             'trust_items.*.code' => 'nullable|string|max:255',
             'sign_type' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
-            'refrigerator_photo' => 'nullable|array', // Nullable array on update
+            'refrigerator_photo' => 'nullable|array',
             'refrigerator_photo.*' => 'image|max:4096',
             'status' => 'required|string|in:active,inactive',
+            'departments' => 'nullable|array',
+            'departments.*' => 'string',
             'classification' => 'required|string|in:A,B,C',
         ], [
             'full_name.required' => 'حقل الاسم الثلاثي مطلوب.',
@@ -453,7 +496,6 @@ class CustomerController extends Controller
             'refrigerator_photo.*.max' => 'حجم كل صورة يجب ألا يتجاوز 4 ميجابايت.',
         ]);
 
-        // التحقق من تحديد خيار واحد على الأقل لخصائص موقع المحل
         if (!$request->boolean('is_main_street') && 
             !$request->boolean('is_side_street') && 
             !$request->boolean('inside_residential_complex') && 
@@ -468,7 +510,12 @@ class CustomerController extends Controller
         $validated['inside_residential_complex'] = $request->boolean('inside_residential_complex');
         $validated['inside_residential_area'] = $request->boolean('inside_residential_area');
 
-        // Filter and clean trust items if present
+        if ($request->input('status') === 'active') {
+            $validated['departments'] = array_values(array_filter((array) $request->input('departments', [])));
+        } else {
+            $validated['departments'] = [];
+        }
+
         if ($request->has('trust_items') && is_array($request->input('trust_items'))) {
             $trustItems = array_values(array_filter($request->input('trust_items'), function ($item) {
                 return !empty($item['name']);
@@ -479,7 +526,6 @@ class CustomerController extends Controller
         }
 
         if ($request->hasFile('refrigerator_photo')) {
-            // Delete old photos if exist
             if (!empty($customer->refrigerator_photo)) {
                 foreach ($customer->refrigerator_photo as $photo) {
                     $oldPath = str_replace('/storage/', '', $photo);

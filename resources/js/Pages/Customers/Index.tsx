@@ -56,6 +56,7 @@ interface Customer {
     phone: string | null;
     refrigerator_photo: string[] | null;
     status: 'active' | 'inactive';
+    departments?: string[] | null;
     classification: 'A' | 'B' | 'C';
     created_at: string;
     creator?: { name: string };
@@ -86,13 +87,23 @@ interface Props {
         status?: string;
         classification?: string;
         district?: string;
+        department?: string;
         per_page?: string;
     };
     trust_types: TrustTypeMaster[];
     districtsList: string[];
+    departmentsList?: string[];
 }
 
-export default function Index({ customers, filters, trust_types, districtsList }: Props) {
+const DEFAULT_DEPARTMENTS = [
+    'قسم ارسي',
+    'قسم النايس',
+    'قسم ابو جنة',
+    'قسم المانشيز',
+    'قسم الرند',
+];
+
+export default function Index({ customers, filters, trust_types, districtsList, departmentsList = DEFAULT_DEPARTMENTS }: Props) {
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
     const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
@@ -107,6 +118,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
     const [classificationFilter, setClassificationFilter] = useState(filters.classification || 'all');
     const [districtFilter, setDistrictFilter] = useState(filters.district || 'all');
+    const [departmentFilter, setDepartmentFilter] = useState(filters.department || 'all');
     const [perPage, setPerPage] = useState(filters.per_page || '10');
 
     // Export to Excel with active filters
@@ -116,6 +128,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
         if (statusFilter !== 'all') params.append('status', statusFilter);
         if (classificationFilter !== 'all') params.append('classification', classificationFilter);
         if (districtFilter !== 'all') params.append('district', districtFilter);
+        if (departmentFilter !== 'all') params.append('department', departmentFilter);
 
         window.location.href = route('customers.export') + '?' + params.toString();
     };
@@ -292,6 +305,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
                     status: statusFilter !== 'all' ? statusFilter : undefined,
                     classification: classificationFilter !== 'all' ? classificationFilter : undefined,
                     district: districtFilter !== 'all' ? districtFilter : undefined,
+                    department: departmentFilter !== 'all' ? departmentFilter : undefined,
                     per_page: perPage !== '10' ? perPage : undefined,
                 },
                 {
@@ -303,13 +317,14 @@ export default function Index({ customers, filters, trust_types, districtsList }
         }, 300); // 300ms debounce for search keystrokes
 
         return () => clearTimeout(delayDebounceFn);
-    }, [searchTerm, statusFilter, classificationFilter, districtFilter, perPage]);
+    }, [searchTerm, statusFilter, classificationFilter, districtFilter, departmentFilter, perPage]);
 
     const resetFilters = () => {
         setSearchTerm('');
         setStatusFilter('all');
         setClassificationFilter('all');
         setDistrictFilter('all');
+        setDepartmentFilter('all');
         setPerPage('10');
     };
 
@@ -379,6 +394,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
         phone: '',
         refrigerator_photo: [] as File[],
         status: 'active' as 'active' | 'inactive',
+        departments: [] as string[],
         classification: 'C' as 'A' | 'B' | 'C',
     });
 
@@ -400,6 +416,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
         phone: '',
         refrigerator_photo: null as File[] | null,
         status: 'active' as 'active' | 'inactive',
+        departments: [] as string[],
         classification: 'C' as 'A' | 'B' | 'C',
         _method: 'PUT', // For multipart file updates in Laravel
     });
@@ -456,6 +473,7 @@ export default function Index({ customers, filters, trust_types, districtsList }
             phone: c.phone || '',
             refrigerator_photo: null,
             status: c.status,
+            departments: c.departments || [],
             classification: c.classification,
             _method: 'PUT',
         });
@@ -774,7 +792,14 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                             <Label className="text-xs font-semibold">حالة التعامل *</Label>
                                             <Select
                                                 value={addForm.data.status}
-                                                onValueChange={(val) => addForm.setData('status', val as 'active' | 'inactive')}
+                                                onValueChange={(val) => {
+                                                    const newStatus = val as 'active' | 'inactive';
+                                                    addForm.setData((data) => ({
+                                                        ...data,
+                                                        status: newStatus,
+                                                        departments: newStatus === 'inactive' ? [] : data.departments,
+                                                    }));
+                                                }}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue />
@@ -787,6 +812,41 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                             {addForm.errors.status && <p className="text-xs text-destructive">{addForm.errors.status}</p>}
                                         </div>
                                     </div>
+
+                                    {/* Department Checkboxes - Shown only when status is active */}
+                                    {addForm.data.status === 'active' && (
+                                        <div className="col-span-1 md:col-span-2 space-y-2 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-md">
+                                            <Label className="text-xs font-bold text-emerald-700 dark:text-emerald-400 block">
+                                                الأقسام المتعامل معها (اختر قسم واحد أو أكثر) *
+                                            </Label>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+                                                {departmentsList.map((dept) => {
+                                                    const isChecked = addForm.data.departments.includes(dept);
+                                                    return (
+                                                        <div key={dept} className="flex items-center gap-2">
+                                                            <Checkbox
+                                                                id={`add_dept_${dept}`}
+                                                                checked={isChecked}
+                                                                onCheckedChange={(checked) => {
+                                                                    let newDepts = [...addForm.data.departments];
+                                                                    if (checked) {
+                                                                        newDepts.push(dept);
+                                                                    } else {
+                                                                        newDepts = newDepts.filter((d) => d !== dept);
+                                                                    }
+                                                                    addForm.setData('departments', newDepts);
+                                                                }}
+                                                            />
+                                                            <Label htmlFor={`add_dept_${dept}`} className="text-xs font-semibold cursor-pointer">
+                                                                {dept}
+                                                            </Label>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            {addForm.errors.departments && <p className="text-xs text-destructive">{addForm.errors.departments}</p>}
+                                        </div>
+                                    )}
 
                                     {/* Dynamic Trust Items List (Name + Individual Code) */}
                                     <div className="space-y-3 col-span-1 md:col-span-2 text-right">
@@ -972,7 +1032,22 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                 </Select>
                             </div>
 
-                            {(searchTerm || statusFilter !== 'all' || classificationFilter !== 'all' || districtFilter !== 'all') && (
+                            {/* Department Filter */}
+                            <div className="space-y-1 w-full md:w-44 text-right">
+                                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                                    <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder="القسم" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">كل الأقسام</SelectItem>
+                                        {departmentsList.map((dept) => (
+                                            <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {(searchTerm || statusFilter !== 'all' || classificationFilter !== 'all' || districtFilter !== 'all' || departmentFilter !== 'all') && (
                                 <div className="col-span-2 lg:col-span-1 flex gap-2 w-full lg:w-auto">
                                     <Button variant="outline" onClick={resetFilters} className="w-full lg:w-auto h-8 text-xs">
                                         ↺ إعادة ضبط
@@ -1041,17 +1116,28 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell>
-                                                        {c.status === 'active' ? (
-                                                            <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 text-[11px] gap-1">
-                                                                <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                                                                متعامل
-                                                            </Badge>
-                                                        ) : (
-                                                            <Badge variant="destructive" className="text-[11px] gap-1">
-                                                                <XCircle className="h-3 w-3" />
-                                                                غير متعامل
-                                                            </Badge>
-                                                        )}
+                                                        <div className="flex flex-col items-start gap-1">
+                                                            {c.status === 'active' ? (
+                                                                <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 text-[11px] gap-1">
+                                                                    <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                                                                    متعامل
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge variant="destructive" className="text-[11px] gap-1">
+                                                                    <XCircle className="h-3 w-3" />
+                                                                    غير متعامل
+                                                                </Badge>
+                                                            )}
+                                                            {c.status === 'active' && c.departments && c.departments.length > 0 && (
+                                                                <div className="flex flex-wrap gap-1 max-w-[150px] mt-0.5">
+                                                                    {c.departments.map((dept, idx) => (
+                                                                        <span key={idx} className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[9px] px-1.5 py-0.5 rounded font-semibold border border-emerald-500/20">
+                                                                            {dept}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </TableCell>
                                                     <TableCell>
                                                         <div className="flex flex-wrap gap-1 max-w-[200px]">
@@ -1494,7 +1580,14 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                             <Label className="text-xs font-semibold">حالة التعامل *</Label>
                                             <Select
                                                 value={editForm.data.status}
-                                                onValueChange={(val) => editForm.setData('status', val as 'active' | 'inactive')}
+                                                onValueChange={(val) => {
+                                                    const newStatus = val as 'active' | 'inactive';
+                                                    editForm.setData((data) => ({
+                                                        ...data,
+                                                        status: newStatus,
+                                                        departments: newStatus === 'inactive' ? [] : data.departments,
+                                                    }));
+                                                }}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue />
@@ -1507,6 +1600,41 @@ export default function Index({ customers, filters, trust_types, districtsList }
                                             {editForm.errors.status && <p className="text-xs text-destructive">{editForm.errors.status}</p>}
                                         </div>
                                     </div>
+
+                                    {/* Department Checkboxes on Edit - Shown only when status is active */}
+                                    {editForm.data.status === 'active' && (
+                                        <div className="col-span-1 md:col-span-2 space-y-2 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-md">
+                                            <Label className="text-xs font-bold text-emerald-700 dark:text-emerald-400 block">
+                                                الأقسام المتعامل معها (اختر قسم واحد أو أكثر) *
+                                            </Label>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+                                                {departmentsList.map((dept) => {
+                                                    const isChecked = editForm.data.departments.includes(dept);
+                                                    return (
+                                                        <div key={dept} className="flex items-center gap-2">
+                                                            <Checkbox
+                                                                id={`edit_dept_${dept}`}
+                                                                checked={isChecked}
+                                                                onCheckedChange={(checked) => {
+                                                                    let newDepts = [...editForm.data.departments];
+                                                                    if (checked) {
+                                                                        newDepts.push(dept);
+                                                                    } else {
+                                                                        newDepts = newDepts.filter((d) => d !== dept);
+                                                                    }
+                                                                    editForm.setData('departments', newDepts);
+                                                                }}
+                                                            />
+                                                            <Label htmlFor={`edit_dept_${dept}`} className="text-xs font-semibold cursor-pointer">
+                                                                {dept}
+                                                            </Label>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            {editForm.errors.departments && <p className="text-xs text-destructive">{editForm.errors.departments}</p>}
+                                        </div>
+                                    )}
 
                                     {/* Dynamic Trust Items List on Edit */}
                                     <div className="space-y-3 col-span-1 md:col-span-2 text-right">

@@ -64,6 +64,7 @@ interface Customer {
     phone: string | null;
     refrigerator_photo: string[] | null;
     status: 'active' | 'inactive';
+    departments?: string[] | null;
     classification: 'A' | 'B' | 'C';
     created_at: string;
     creator?: { name: string };
@@ -78,9 +79,18 @@ interface Props {
     customer: Customer;
     trust_types: TrustTypeMaster[];
     districtsList: string[];
+    departmentsList?: string[];
 }
 
-export default function Show({ customer, trust_types, districtsList }: Props) {
+const DEFAULT_DEPARTMENTS = [
+    'قسم ارسي',
+    'قسم النايس',
+    'قسم ابو جنة',
+    'قسم المانشيز',
+    'قسم الرند',
+];
+
+export default function Show({ customer, trust_types, districtsList, departmentsList = DEFAULT_DEPARTMENTS }: Props) {
     // ─── Map ───────────────────────────────────────────────────
     useEffect(() => {
         if (!customer.latitude || !customer.longitude) return;
@@ -132,6 +142,7 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
         sign_type: customer.sign_type || '',
         trust_items: customer.trust_items || [] as TrustItem[],
         status: customer.status,
+        departments: customer.departments || [] as string[],
         classification: customer.classification,
         refrigerator_photo: null as File[] | null,
     });
@@ -172,6 +183,12 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
         });
 
         formData.append('status', editForm.data.status);
+        if (editForm.data.status === 'active') {
+            editForm.data.departments.forEach((dept, idx) => {
+                formData.append(`departments[${idx}]`, dept);
+            });
+        }
+
         formData.append('classification', editForm.data.classification);
         if (editForm.data.refrigerator_photo) {
             editForm.data.refrigerator_photo.forEach((file) => {
@@ -257,6 +274,15 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
                                 </Badge>
                             )}
                             <Badge variant="secondary" className="text-[10px] font-bold">Class {customer.classification}</Badge>
+                            {customer.status === 'active' && customer.departments && customer.departments.length > 0 && (
+                                <div className="flex flex-wrap gap-1 items-center">
+                                    {customer.departments.map((dept, idx) => (
+                                        <Badge key={idx} variant="secondary" className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px]">
+                                            {dept}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                         <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground truncate">{customer.commercial_name}</h1>
                         <p className="text-xs text-muted-foreground">{customer.full_name}</p>
@@ -648,7 +674,17 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-right">
                             <div className="space-y-1.5">
                                 <Label className="text-xs font-semibold">حالة التعامل *</Label>
-                                <Select value={editForm.data.status} onValueChange={v => editForm.setData('status', v as any)}>
+                                <Select
+                                    value={editForm.data.status}
+                                    onValueChange={(val) => {
+                                        const newStatus = val as 'active' | 'inactive';
+                                        editForm.setData((data) => ({
+                                            ...data,
+                                            status: newStatus,
+                                            departments: newStatus === 'inactive' ? [] : data.departments,
+                                        }));
+                                    }}
+                                >
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="active">متعامل</SelectItem>
@@ -657,6 +693,41 @@ export default function Show({ customer, trust_types, districtsList }: Props) {
                                 </Select>
                                 {editForm.errors.status && <p className="text-xs text-destructive">{editForm.errors.status}</p>}
                             </div>
+
+                            {/* Department Checkboxes on Edit Dialog */}
+                            {editForm.data.status === 'active' && (
+                                <div className="col-span-1 md:col-span-2 space-y-2 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-md text-right">
+                                    <Label className="text-xs font-bold text-emerald-700 dark:text-emerald-400 block">
+                                        الأقسام المتعامل معها (اختر قسم واحد أو أكثر) *
+                                    </Label>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+                                        {departmentsList.map((dept) => {
+                                            const isChecked = editForm.data.departments.includes(dept);
+                                            return (
+                                                <div key={dept} className="flex items-center gap-2">
+                                                    <Checkbox
+                                                        id={`show_edit_dept_${dept}`}
+                                                        checked={isChecked}
+                                                        onCheckedChange={(checked) => {
+                                                            let newDepts = [...editForm.data.departments];
+                                                            if (checked) {
+                                                                newDepts.push(dept);
+                                                            } else {
+                                                                newDepts = newDepts.filter((d) => d !== dept);
+                                                            }
+                                                            editForm.setData('departments', newDepts);
+                                                        }}
+                                                    />
+                                                    <Label htmlFor={`show_edit_dept_${dept}`} className="text-xs font-semibold cursor-pointer">
+                                                        {dept}
+                                                    </Label>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    {editForm.errors.departments && <p className="text-xs text-destructive">{editForm.errors.departments}</p>}
+                                </div>
+                            )}
                             <div className="space-y-1.5">
                                 <Label className="text-xs font-semibold">التصنيف *</Label>
                                 <Select value={editForm.data.classification} onValueChange={v => editForm.setData('classification', v as any)}>

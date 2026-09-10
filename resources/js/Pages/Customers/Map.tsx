@@ -39,6 +39,7 @@ interface Customer {
     phone: string | null;
     refrigerator_photo: string[] | null;
     status: 'active' | 'inactive';
+    departments?: string[] | null;
     classification: 'A' | 'B' | 'C';
     created_at: string;
 }
@@ -55,22 +56,33 @@ interface Props {
         status?: string;
         classification?: string;
         district?: string;
+        department?: string;
     };
     districtsList: string[];
+    departmentsList?: string[];
     trust_types: TrustTypeMaster[];
 }
 
-export default function MapPage({ customers, filters, districtsList }: Props) {
+const DEFAULT_DEPARTMENTS = [
+    'قسم ارسي',
+    'قسم النايس',
+    'قسم ابو جنة',
+    'قسم المانشيز',
+    'قسم الرند',
+];
+
+export default function MapPage({ customers, filters, districtsList, departmentsList = DEFAULT_DEPARTMENTS }: Props) {
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
     const [classificationFilter, setClassificationFilter] = useState(filters.classification || 'all');
     const [districtFilter, setDistrictFilter] = useState(filters.district || 'all');
+    const [departmentFilter, setDepartmentFilter] = useState(filters.department || 'all');
     const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
 
     const mapInstanceRef = useRef<any>(null);
 
     // Apply Filters and refresh data
-    const handleFilterChange = (newFilters: { search?: string; status?: string; classification?: string; district?: string }) => {
+    const handleFilterChange = (newFilters: { search?: string; status?: string; classification?: string; district?: string; department?: string }) => {
         router.get(
             route('customers.map'),
             {
@@ -78,6 +90,7 @@ export default function MapPage({ customers, filters, districtsList }: Props) {
                 status: newFilters.status !== undefined ? (newFilters.status !== 'all' ? newFilters.status : undefined) : (statusFilter !== 'all' ? statusFilter : undefined),
                 classification: newFilters.classification !== undefined ? (newFilters.classification !== 'all' ? newFilters.classification : undefined) : (classificationFilter !== 'all' ? classificationFilter : undefined),
                 district: newFilters.district !== undefined ? (newFilters.district !== 'all' ? newFilters.district : undefined) : (districtFilter !== 'all' ? districtFilter : undefined),
+                department: newFilters.department !== undefined ? (newFilters.department !== 'all' ? newFilters.department : undefined) : (departmentFilter !== 'all' ? departmentFilter : undefined),
             },
             {
                 preserveState: true,
@@ -92,6 +105,7 @@ export default function MapPage({ customers, filters, districtsList }: Props) {
         setStatusFilter('all');
         setClassificationFilter('all');
         setDistrictFilter('all');
+        setDepartmentFilter('all');
         router.get(route('customers.map'), {}, { preserveState: true, replace: true });
     };
 
@@ -180,6 +194,10 @@ export default function MapPage({ customers, filters, districtsList }: Props) {
 
                 const classBadge = `<span style="background: #e0f2fe; color: #0369a1; font-size: 10px; font-weight: bold; padding: 2px 6px; borderRadius: 4px;">Class ${c.classification}</span>`;
 
+                const deptsBadges = (c.status === 'active' && c.departments && c.departments.length > 0)
+                    ? `<div style="display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px;">${c.departments.map(d => `<span style="background: #ecfdf5; color: #047857; font-size: 9px; font-weight: bold; padding: 1px 5px; border-radius: 4px; border: 1px solid #a7f3d0;">${d}</span>`).join('')}</div>`
+                    : '';
+
                 const popupContent = `
                     <div style="direction: rtl; text-align: right; font-family: sans-serif; min-width: 210px; max-width: 260px; padding: 4px;">
                         ${photoPreview}
@@ -189,9 +207,12 @@ export default function MapPage({ customers, filters, districtsList }: Props) {
                         </div>
                         <p style="font-size: 11px; color: #64748b; margin: 0 0 6px 0;">الاسم: ${c.full_name}</p>
                         
-                        <div style="display: flex; gap: 4px; margin-bottom: 8px;">
-                            ${statusBadge}
-                            <span style="background: #f1f5f9; color: #475569; font-size: 10px; padding: 2px 6px; borderRadius: 4px;">📍 ${c.district || 'غير محدد'}</span>
+                        <div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px;">
+                            <div style="display: flex; gap: 4px;">
+                                ${statusBadge}
+                                <span style="background: #f1f5f9; color: #475569; font-size: 10px; padding: 2px 6px; borderRadius: 4px;">📍 ${c.district || 'غير محدد'}</span>
+                            </div>
+                            ${deptsBadges}
                         </div>
 
                         ${c.nearest_landmark ? `<p style="font-size: 11px; color: #334155; margin: 0 0 6px 0;"><b>أقرب نقطة:</b> ${c.nearest_landmark}</p>` : ''}
@@ -271,10 +292,10 @@ export default function MapPage({ customers, filters, districtsList }: Props) {
                     <CardContent className="p-3 md:p-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-right">
                             {/* Search Input */}
-                            <div className="relative col-span-1 sm:col-span-2 lg:col-span-2">
+                            <div className="relative col-span-1 sm:col-span-2 lg:col-span-1">
                                 <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    placeholder="بحث باسم العميل، الاسم التجاري، الهواتف..."
+                                    placeholder="بحث باسم العميل، الاسم التجاري..."
                                     value={searchTerm}
                                     onChange={(e) => {
                                         setSearchTerm(e.target.value);
@@ -326,6 +347,27 @@ export default function MapPage({ customers, filters, districtsList }: Props) {
                                 </Select>
                             </div>
 
+                            {/* Department Filter */}
+                            <div>
+                                <Select
+                                    value={departmentFilter}
+                                    onValueChange={(val) => {
+                                        setDepartmentFilter(val);
+                                        handleFilterChange({ department: val });
+                                    }}
+                                >
+                                    <SelectTrigger className="text-xs h-9">
+                                        <SelectValue placeholder="تصفية حسب القسم" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">كافة الأقسام</SelectItem>
+                                        {departmentsList.map((dept) => (
+                                            <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
                             {/* Status Filter */}
                             <div className="flex items-center gap-2">
                                 <Select
@@ -345,12 +387,12 @@ export default function MapPage({ customers, filters, districtsList }: Props) {
                                     </SelectContent>
                                 </Select>
 
-                                {(searchTerm || statusFilter !== 'all' || classificationFilter !== 'all' || districtFilter !== 'all') && (
+                                {(searchTerm || statusFilter !== 'all' || classificationFilter !== 'all' || districtFilter !== 'all' || departmentFilter !== 'all') && (
                                     <Button
                                         onClick={resetFilters}
                                         variant="ghost"
                                         size="icon"
-                                        className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                                        className="h-9 w-9 text-muted-foreground hover:text-foreground shrink-0"
                                         title="إعادة ضبط الفلاتر"
                                     >
                                         <RotateCcw className="size-4" />
