@@ -29,7 +29,9 @@ import {
     Tag,
     Download,
     Printer,
+    Share2,
 } from 'lucide-react';
+import ShareCustomerModal from '@/Components/ShareCustomerModal';
 
 interface TrustItem {
     name: string;
@@ -1156,6 +1158,19 @@ export default function Index({ customers, filters, trust_types, districtsList, 
                                                     </TableCell>
                                                     <TableCell className="text-center">
                                                         <div className="flex items-center justify-center gap-1">
+                                                            <ShareCustomerModal
+                                                                customer={c}
+                                                                trigger={
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                                                                        title="مشاركة العميل عبر الواتساب"
+                                                                    >
+                                                                        <Share2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                }
+                                                            />
                                                             <Link href={route('customers.show', c.id)}>
                                                                 <Button
                                                                     variant="ghost"

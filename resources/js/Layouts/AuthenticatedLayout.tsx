@@ -17,6 +17,7 @@ import {
     Download,
     Tag,
 } from 'lucide-react';
+import { Toaster } from '@/components/ui/sonner';
 
 interface AuthenticatedProps {
     children: ReactNode;
@@ -371,6 +372,7 @@ export default function AuthenticatedLayout({ children, header }: AuthenticatedP
                     </div>
                 </div>
             )}
+            <Toaster position="top-center" dir="rtl" />
         </div>
     );
 }

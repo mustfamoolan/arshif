@@ -198,6 +198,16 @@ export default function MapPage({ customers, filters, districtsList, departments
                     ? `<div style="display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px;">${c.departments.map(d => `<span style="background: #ecfdf5; color: #047857; font-size: 9px; font-weight: bold; padding: 1px 5px; border-radius: 4px; border: 1px solid #a7f3d0;">${d}</span>`).join('')}</div>`
                     : '';
 
+                const shareText = encodeURIComponent(
+                    `السلام عليكم، يرجى متابعة ملف هذا العميل:\n` +
+                    `🏪 *${c.commercial_name}*\n` +
+                    `👤 *${c.full_name}*\n` +
+                    `📍 القضاء: ${c.district || ''} ${c.nearest_landmark ? `(${c.nearest_landmark})` : ''}\n` +
+                    (c.phone ? `📞 الهاتف: ${c.phone}\n` : '') +
+                    `🔗 رابط صفحة العميل:\n${window.location.origin}/customers/${c.id}`
+                );
+                const waUrl = `https://api.whatsapp.com/send?text=${shareText}`;
+
                 const popupContent = `
                     <div style="direction: rtl; text-align: right; font-family: sans-serif; min-width: 210px; max-width: 260px; padding: 4px;">
                         ${photoPreview}
@@ -229,6 +239,9 @@ export default function MapPage({ customers, filters, districtsList, departments
                             </div>
                             <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" style="text-align: center; background: #ea580c; color: white; padding: 6px 8px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
                                 🚗 بدء التوجيه والملاحة (Google Maps)
+                            </a>
+                            <a href="${waUrl}" target="_blank" style="text-align: center; background: #25D366; color: white; padding: 6px 8px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                💬 مشاركة العميل عبر الواتساب
                             </a>
                         </div>
                     </div>

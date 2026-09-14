@@ -37,7 +37,9 @@ import {
     CheckCircle2,
     XCircle,
     Tag,
+    Share2,
 } from 'lucide-react';
+import ShareCustomerModal from '@/Components/ShareCustomerModal';
 
 interface TrustItem {
     name: string;
@@ -289,13 +291,26 @@ export default function Show({ customer, trust_types, districtsList, departments
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="grid grid-cols-3 sm:flex items-center gap-2 w-full sm:w-auto">
+                    <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
                         <Link href={route('customers.index')} className="w-full sm:w-auto">
                             <Button variant="outline" size="sm" className="w-full sm:w-auto gap-1.5 text-xs h-9 justify-center">
                                 <ArrowRight className="size-3.5" />
                                 <span>رجوع</span>
                             </Button>
                         </Link>
+                        <ShareCustomerModal
+                            customer={customer}
+                            trigger={
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full sm:w-auto gap-1.5 text-xs h-9 border-emerald-600/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 font-bold justify-center"
+                                >
+                                    <Share2 className="size-3.5" />
+                                    <span>مشاركة</span>
+                                </Button>
+                            }
+                        />
                         <Button
                             variant="outline"
                             size="sm"
