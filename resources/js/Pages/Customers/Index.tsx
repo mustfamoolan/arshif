@@ -32,6 +32,7 @@ import {
     Share2,
 } from 'lucide-react';
 import ShareCustomerModal from '@/Components/ShareCustomerModal';
+import { toast } from 'sonner';
 
 interface TrustItem {
     name: string;
@@ -280,24 +281,30 @@ export default function Index({ customers, filters, trust_types, districtsList, 
         printWindow.document.close();
     };
 
-    // Real-time automatic polling: Auto-refresh list every 5 seconds silently
+    // Auto-refresh list every 30 seconds — paused when any form modal is open or tab is hidden (iOS fix)
     useEffect(() => {
         const interval = setInterval(() => {
+            // Never reload while employee is filling the form or tab is in background
+            if (isAddOpen || editingCustomer || document.hidden) return;
             router.reload({
                 only: ['customers'],
             });
-        }, 5000);
+        }, 30000);
 
         return () => clearInterval(interval);
-    }, []);
+    }, [isAddOpen, editingCustomer]);
 
     // Reactive Instant Filters: automatically reloads the list when inputs change
+    // GUARD: never navigate while a form dialog is open (prevents losing entered data on iOS)
     const isFirstRender = useRef(true);
     useEffect(() => {
         if (isFirstRender.current) {
             isFirstRender.current = false;
             return;
         }
+
+        // Don't fire filter navigation while employee is filling a form
+        if (isAddOpen || editingCustomer) return;
 
         const delayDebounceFn = setTimeout(() => {
             router.get(
@@ -319,7 +326,7 @@ export default function Index({ customers, filters, trust_types, districtsList, 
         }, 300); // 300ms debounce for search keystrokes
 
         return () => clearTimeout(delayDebounceFn);
-    }, [searchTerm, statusFilter, classificationFilter, districtFilter, departmentFilter, perPage]);
+    }, [searchTerm, statusFilter, classificationFilter, districtFilter, departmentFilter, perPage, isAddOpen, editingCustomer]);
 
     const resetFilters = () => {
         setSearchTerm('');
@@ -423,6 +430,54 @@ export default function Index({ customers, filters, trust_types, districtsList, 
         _method: 'PUT', // For multipart file updates in Laravel
     });
 
+    // ===== DRAFT AUTO-SAVE & RECOVERY (localStorage) =====
+    // Protects form data on iOS when employee switches apps (Maps, WhatsApp, etc.)
+    const DRAFT_KEY = 'arshif_add_customer_draft';
+
+    // Restore saved draft when add dialog opens (only if form is still empty)
+    useEffect(() => {
+        if (!isAddOpen) return;
+        try {
+            const savedDraft = localStorage.getItem(DRAFT_KEY);
+            if (!savedDraft) return;
+            const draft = JSON.parse(savedDraft);
+            // Only restore if the form hasn't been touched yet
+            if (addForm.data.full_name || addForm.data.commercial_name) return;
+            addForm.setData((data) => ({
+                ...data,
+                full_name: draft.full_name || '',
+                commercial_name: draft.commercial_name || '',
+                phone: draft.phone || '',
+                district: draft.district || '',
+                nearest_landmark: draft.nearest_landmark || '',
+                location_address: draft.location_address || '',
+                latitude: draft.latitude || '',
+                longitude: draft.longitude || '',
+                estimated_area: draft.estimated_area || '',
+                sign_type: draft.sign_type || '',
+                status: draft.status || 'active',
+                departments: draft.departments || [],
+                classification: draft.classification || 'C',
+                is_main_street: draft.is_main_street ?? false,
+                is_side_street: draft.is_side_street ?? false,
+                inside_residential_complex: draft.inside_residential_complex ?? false,
+                inside_residential_area: draft.inside_residential_area ?? false,
+                trust_items: draft.trust_items || [],
+            }));
+            toast.info('تم استعادة بيانات المسودة المحفوظة مسبقاً.', { duration: 3000 });
+        } catch {}
+    }, [isAddOpen]);
+
+    // Auto-save draft on every form change while dialog is open
+    useEffect(() => {
+        if (!isAddOpen) return;
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { refrigerator_photo: _photos, ...draftData } = addForm.data;
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData));
+        } catch {}
+    }, [isAddOpen, addForm.data]);
+
     // Handle Geolocation
     const fetchCurrentLocation = (formType: 'add' | 'edit') => {
         if (navigator.geolocation) {
@@ -437,7 +492,7 @@ export default function Index({ customers, filters, trust_types, districtsList, 
                     }
                 },
                 (error) => {
-                    alert('عذراً، فشل الحصول على الموقع الحالي. تأكد من تفعيل الـ GPS وصلاحيات الموقع.');
+                    toast.error('فشل تحديد الموقع. تأكد من تفعيل GPS وإذن الموقع في إعدادات الجهاز.', { duration: 5000 });
                 }
             );
         } else {
@@ -448,9 +503,20 @@ export default function Index({ customers, filters, trust_types, districtsList, 
     const handleAddSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         addForm.post(route('customers.store'), {
+            forceFormData: true, // Always send multipart/form-data (required for file fields on iOS Safari)
             onSuccess: () => {
                 setIsAddOpen(false);
                 addForm.reset();
+                // Clear saved draft on successful save
+                try { localStorage.removeItem(DRAFT_KEY); } catch {}
+                toast.success('تم إضافة العميل بنجاح!');
+            },
+            onError: (errors) => {
+                // Keep dialog open and show the first validation error
+                const firstError = Object.values(errors)[0];
+                if (firstError) {
+                    toast.error(String(firstError), { duration: 6000 });
+                }
             },
         });
     };
@@ -486,9 +552,17 @@ export default function Index({ customers, filters, trust_types, districtsList, 
         if (!editingCustomer) return;
 
         editForm.post(route('customers.update', editingCustomer.id), {
+            forceFormData: true, // Always send multipart/form-data (required for file fields on iOS Safari)
             onSuccess: () => {
                 setEditingCustomer(null);
                 editForm.reset();
+                toast.success('تم تحديث بيانات العميل بنجاح!');
+            },
+            onError: (errors) => {
+                const firstError = Object.values(errors)[0];
+                if (firstError) {
+                    toast.error(String(firstError), { duration: 6000 });
+                }
             },
         });
     };
@@ -553,7 +627,11 @@ export default function Index({ customers, filters, trust_types, districtsList, 
                                 <span>إضافة عميل</span>
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
+                        <DialogContent
+                            className="max-w-2xl overflow-y-auto max-h-[90vh]"
+                            onInteractOutside={(e) => e.preventDefault()}
+                            onPointerDownOutside={(e) => e.preventDefault()}
+                        >
                             <DialogHeader>
                                 <DialogTitle className="text-base font-bold flex items-center gap-2 text-right">
                                     <UserPlus className="h-5 w-5 text-primary" />
